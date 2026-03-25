@@ -25,8 +25,8 @@ export function createApiRoutes(store: TaskStore, options?: ServerOptions): Rout
   router.post("/tasks", async (req, res) => {
     try {
       const { title, description, column, dependencies } = req.body;
-      if (!title || typeof title !== "string") {
-        res.status(400).json({ error: "title is required" });
+      if (!description || typeof description !== "string") {
+        res.status(400).json({ error: "description is required" });
         return;
       }
       const task = await store.createTask({
