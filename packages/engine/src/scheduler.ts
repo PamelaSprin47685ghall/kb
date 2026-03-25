@@ -78,6 +78,7 @@ export class Scheduler {
         });
 
         if (unmetDeps.length > 0) {
+          await this.store.updateTask(task.id, { status: "queued" });
           this.options.onBlocked?.(task, unmetDeps);
           continue;
         }
@@ -87,10 +88,11 @@ export class Scheduler {
           continue;
         }
 
-        // Dependencies met — move to in-progress
+        // Dependencies met — clear status and move to in-progress
         console.log(
           `[scheduler] Starting ${task.id}: ${task.title || task.id} (deps satisfied)`,
         );
+        await this.store.updateTask(task.id, { status: null });
         await this.store.moveTask(task.id, "in-progress");
         this.options.onSchedule?.(task);
         started++;

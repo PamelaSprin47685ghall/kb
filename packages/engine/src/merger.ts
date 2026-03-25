@@ -144,6 +144,8 @@ export async function aiMergeTask(
   }
 
   // 5. Spawn pi agent to resolve conflicts (if any) and write commit message
+  await store.updateTask(taskId, { status: "merging" });
+
   console.log(
     `[merger] ${taskId}: ${hasConflicts ? "resolving conflicts + " : ""}writing commit message`,
   );

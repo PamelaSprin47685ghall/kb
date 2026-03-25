@@ -84,6 +84,13 @@ export class TriageProcessor {
       );
 
       for (const task of triageTasks) {
+        // Mark waiting tasks as queued
+        if (triageTasks.indexOf(task) > 0) {
+          await this.store.updateTask(task.id, { status: "queued" });
+        }
+      }
+
+      for (const task of triageTasks) {
         // Process one at a time to avoid overwhelming the API
         await this.specifyTask(task);
       }
@@ -99,6 +106,7 @@ export class TriageProcessor {
     console.log(`[triage] Specifying ${task.id}: ${task.title || task.id}`);
     this.options.onSpecifyStart?.(task);
 
+    await this.store.updateTask(task.id, { status: "planning" });
 
     try {
       // Get the full task detail including current prompt
@@ -121,6 +129,9 @@ export class TriageProcessor {
 
         // Run the agent
         await session.prompt(agentPrompt);
+
+        // Clear status before moving to todo
+        await this.store.updateTask(task.id, { status: null });
 
         // Move to todo
         await this.store.moveTask(task.id, "todo");

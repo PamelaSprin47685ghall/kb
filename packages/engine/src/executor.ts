@@ -73,6 +73,7 @@ export class TaskExecutor {
     this.executing.add(task.id);
 
     console.log(`[executor] Starting ${task.id}: ${task.title || task.id}`);
+    await this.store.updateTask(task.id, { status: "starting" });
 
     try {
       // Check dependencies
@@ -100,10 +101,13 @@ export class TaskExecutor {
 
       this.options.onStart?.(task, worktreePath);
 
+      await this.store.updateTask(task.id, { status: "researching" });
+
       // Read the task's PROMPT.md
       const detail = await this.store.getTask(task.id);
 
       // Create a pi agent session in the worktree
+      let hasStartedExecuting = false;
       const { session } = await createHaiAgent({
         cwd: worktreePath,
         systemPrompt: EXECUTOR_SYSTEM_PROMPT,
@@ -111,6 +115,10 @@ export class TaskExecutor {
         onText: (delta) => this.options.onAgentText?.(task.id, delta),
         onToolStart: (name) => {
           this.options.onAgentTool?.(task.id, name);
+          if (!hasStartedExecuting && /^(write|edit|bash)/i.test(name)) {
+            hasStartedExecuting = true;
+            this.store.updateTask(task.id, { status: "executing" }).catch(() => {});
+          }
         },
       });
 
@@ -128,14 +136,18 @@ export class TaskExecutor {
         );
         const doneCwd = join(worktreePath, ".DONE");
 
+        await this.store.updateTask(task.id, { status: "finalizing" });
+
         if (existsSync(doneFile) || existsSync(doneCwd)) {
           await this.store.moveTask(task.id, "in-review");
+          await this.store.updateTask(task.id, { status: "ready" });
           console.log(`[executor] ✓ ${task.id} completed → in-review`);
           this.options.onComplete?.(task);
         } else {
           // Agent finished but didn't create .DONE — still move to review
           // so a human can inspect
           await this.store.moveTask(task.id, "in-review");
+          await this.store.updateTask(task.id, { status: "ready" });
           console.log(
             `[executor] ⚠ ${task.id} agent finished without .DONE → in-review for inspection`,
           );
