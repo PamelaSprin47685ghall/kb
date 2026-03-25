@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "tsx packages/cli/src/bin.ts",
+    "dev:ui": "pnpm --filter @hai/dashboard dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck"
   },

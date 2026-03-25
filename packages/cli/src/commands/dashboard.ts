@@ -25,7 +25,7 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
     });
 
   // Start the web server with AI merge wired in
-  const app = await createServer(store, { onMerge, dev: true });
+  const app = createServer(store, { onMerge });
 
   // Clean shutdown for file watcher when engine is not active
   if (!opts.engine) {
