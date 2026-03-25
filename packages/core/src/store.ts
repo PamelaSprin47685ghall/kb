@@ -168,7 +168,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
 
   async updateTask(
     id: string,
-    updates: { title?: string; description?: string; prompt?: string; worktree?: string },
+    updates: { title?: string; description?: string; prompt?: string; worktree?: string; status?: string | null },
   ): Promise<Task> {
     const dir = this.taskDir(id);
     const data = await readFile(join(dir, "task.json"), "utf-8");
@@ -177,6 +177,11 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
     if (updates.title !== undefined) task.title = updates.title;
     if (updates.description !== undefined) task.description = updates.description;
     if (updates.worktree !== undefined) task.worktree = updates.worktree;
+    if (updates.status === null) {
+      task.status = undefined;
+    } else if (updates.status !== undefined) {
+      task.status = updates.status;
+    }
     task.updatedAt = new Date().toISOString();
 
     const taskJsonPath = join(dir, "task.json");
@@ -318,6 +323,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
   private async moveToDone(task: Task, dir: string): Promise<void> {
     task.column = "done";
     task.worktree = undefined;
+    task.status = undefined;
     task.updatedAt = new Date().toISOString();
 
     const taskJsonPath = join(dir, "task.json");

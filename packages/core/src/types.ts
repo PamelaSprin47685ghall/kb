@@ -8,6 +8,7 @@ export interface Task {
   column: Column;
   dependencies: string[];
   worktree?: string;
+  status?: string;
   createdAt: string;
   updatedAt: string;
 }
