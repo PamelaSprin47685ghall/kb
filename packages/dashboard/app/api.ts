@@ -39,3 +39,7 @@ export function deleteTask(id: string): Promise<Task> {
 export function mergeTask(id: string): Promise<MergeResult> {
   return api<MergeResult>(`/tasks/${id}/merge`, { method: "POST" });
 }
+
+export function fetchConfig(): Promise<{ maxConcurrent: number }> {
+  return api<{ maxConcurrent: number }>("/config");
+}

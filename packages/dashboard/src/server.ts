@@ -11,6 +11,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export interface ServerOptions {
   /** Custom merge handler — when provided, used instead of store.mergeTask */
   onMerge?: (taskId: string) => Promise<MergeResult>;
+  /** Maximum concurrent worktrees / execution slots (default 2) */
+  maxConcurrent?: number;
 }
 
 export function createServer(store: TaskStore, options?: ServerOptions): ReturnType<typeof express> {

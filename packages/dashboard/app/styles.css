@@ -421,6 +421,60 @@ html, body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* === Worktree Groups === */
+.worktree-group {
+  background: var(--surface);
+  border-left: 3px solid var(--in-progress);
+  border-radius: var(--radius);
+  padding: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.worktree-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+}
+
+.worktree-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.worktree-label {
+  font-family: "SF Mono", Monaco, Consolas, monospace;
+}
+
+/* Queued preview cards */
+.card.queued {
+  opacity: 0.55;
+  border-style: dashed;
+  cursor: default;
+}
+.card.queued:hover {
+  cursor: default;
+}
+.card.queued:active {
+  cursor: default;
+}
+
+.queued-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--todo);
+}
+
 /* === Empty state === */
 .empty-column {
   display: flex;

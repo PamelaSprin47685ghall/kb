@@ -6,6 +6,11 @@ import type { ServerOptions } from "./server.js";
 export function createApiRoutes(store: TaskStore, options?: ServerOptions): Router {
   const router = Router();
 
+  // Scheduler config
+  router.get("/config", (_req, res) => {
+    res.json({ maxConcurrent: options?.maxConcurrent ?? 2 });
+  });
+
   // List all tasks
   router.get("/tasks", async (_req, res) => {
     try {
