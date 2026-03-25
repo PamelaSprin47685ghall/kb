@@ -8,25 +8,29 @@ async function getStore(): Promise<TaskStore> {
   return store;
 }
 
-export async function runTaskCreate(titleArg?: string) {
-  let title = titleArg;
+export async function runTaskCreate(descriptionArg?: string) {
+  let description = descriptionArg;
 
-  if (!title) {
+  if (!description) {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    title = await rl.question("Task title: ");
+    description = await rl.question("Task description: ");
     rl.close();
   }
 
-  if (!title?.trim()) {
-    console.error("Title is required");
+  if (!description?.trim()) {
+    console.error("Description is required");
     process.exit(1);
   }
 
   const store = await getStore();
-  const task = await store.createTask({ title: title.trim() });
+  const task = await store.createTask({ description: description.trim() });
+
+  const label = task.description.length > 60
+    ? task.description.slice(0, 60) + "…"
+    : task.description;
 
   console.log();
-  console.log(`  ✓ Created ${task.id}: ${task.title}`);
+  console.log(`  ✓ Created ${task.id}: ${label}`);
   console.log(`    Column: triage`);
   console.log(`    Path:   .hai/tasks/${task.id}/`);
   console.log();
