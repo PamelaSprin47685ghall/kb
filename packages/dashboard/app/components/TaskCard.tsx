@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
-import type { Task, TaskDetail } from "@hai/core";
+import type { Task, TaskDetail, TaskStatus } from "@hai/core";
+import { STATUS_LABELS, STATUS_COLORS } from "@hai/core";
 import { fetchTaskDetail } from "../api";
 import type { ToastType } from "../hooks/useToast";
 
@@ -31,6 +32,10 @@ export function TaskCard({ task, onOpenDetail, addToast }: TaskCardProps) {
     }
   }, [task.id, onOpenDetail, addToast]);
 
+  const status: TaskStatus = task.status ?? "idle";
+  const showBadge = status !== "idle";
+  const isPulsing = status === "specifying" || status === "executing";
+
   return (
     <div
       className={`card${dragging ? " dragging" : ""}`}
@@ -41,6 +46,19 @@ export function TaskCard({ task, onOpenDetail, addToast }: TaskCardProps) {
       onClick={handleClick}
     >
       <span className="card-id">{task.id}</span>
+      {showBadge && (
+        <span
+          className={`card-status-badge${isPulsing ? " pulsing" : ""}`}
+          style={{
+            color: STATUS_COLORS[status],
+            background: STATUS_COLORS[status].startsWith("var(")
+              ? `color-mix(in srgb, ${STATUS_COLORS[status]} 15%, transparent)`
+              : `${STATUS_COLORS[status]}26`,
+          }}
+        >
+          {STATUS_LABELS[status]}
+        </span>
+      )}
       <div className="card-title">{task.title}</div>
       {task.dependencies && task.dependencies.length > 0 && (
         <div className="card-meta">
