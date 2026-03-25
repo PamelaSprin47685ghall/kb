@@ -1,4 +1,5 @@
 import { TaskStore, COLUMNS, COLUMN_LABELS, type Column, type MergeResult } from "@hai/core";
+import { aiMergeTask } from "@hai/engine";
 import { createInterface } from "node:readline/promises";
 
 async function getStore(): Promise<TaskStore> {
@@ -63,10 +64,16 @@ export async function runTaskList() {
 }
 
 export async function runTaskMerge(id: string) {
+  const cwd = process.cwd();
   const store = await getStore();
 
+  console.log(`\n  Merging ${id} with AI...\n`);
+
   try {
-    const result = await store.mergeTask(id);
+    const result = await aiMergeTask(store, cwd, id, {
+      onAgentText: (delta) => process.stdout.write(delta),
+      onAgentTool: (name) => console.log(`  [merge] tool: ${name}`),
+    });
 
     console.log();
     if (result.merged) {

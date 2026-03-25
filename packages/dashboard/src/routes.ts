@@ -1,8 +1,9 @@
 import { Router } from "express";
-import type { TaskStore, Column } from "@hai/core";
+import type { TaskStore, Column, MergeResult } from "@hai/core";
 import { COLUMNS } from "@hai/core";
+import type { ServerOptions } from "./server.js";
 
-export function createApiRoutes(store: TaskStore): Router {
+export function createApiRoutes(store: TaskStore, options?: ServerOptions): Router {
   const router = Router();
 
   // List all tasks
@@ -54,13 +55,15 @@ export function createApiRoutes(store: TaskStore): Router {
   });
 
   // Merge task (in-review → done, merges branch + cleans worktree)
+  // Uses AI merge handler if provided, falls back to store.mergeTask
   router.post("/tasks/:id/merge", async (req, res) => {
     try {
-      const result = await store.mergeTask(req.params.id);
+      const merge = options?.onMerge ?? ((id: string) => store.mergeTask(id));
+      const result = await merge(req.params.id);
       res.json(result);
     } catch (err: any) {
       const status = err.message.includes("Cannot merge") ? 400
-        : err.message.includes("Merge conflict") ? 409
+        : err.message.includes("conflict") ? 409
         : 500;
       res.status(status).json({ error: err.message });
     }

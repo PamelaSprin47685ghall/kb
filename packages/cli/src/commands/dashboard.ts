@@ -1,7 +1,7 @@
 import { exec } from "node:child_process";
 import { TaskStore } from "@hai/core";
 import { createServer } from "@hai/dashboard";
-import { TriageProcessor, TaskExecutor, Scheduler } from "@hai/engine";
+import { TriageProcessor, TaskExecutor, Scheduler, aiMergeTask } from "@hai/engine";
 
 function openBrowser(url: string): void {
   const cmd =
@@ -16,8 +16,15 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
   const store = new TaskStore(cwd);
   await store.init();
 
-  // Start the web server
-  const app = createServer(store);
+  // AI-powered merge handler
+  const onMerge = (taskId: string) =>
+    aiMergeTask(store, cwd, taskId, {
+      onAgentText: (delta) => process.stdout.write(delta),
+      onAgentTool: (name) => console.log(`[merger] tool: ${name}`),
+    });
+
+  // Start the web server with AI merge wired in
+  const app = createServer(store, { onMerge });
 
   // Optionally start the AI engine
   if (opts.engine) {
@@ -56,6 +63,7 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
     console.log(`  → http://localhost:${port}`);
     console.log();
     console.log(`  Tasks stored in .hai/tasks/`);
+    console.log(`  Merge:      AI-assisted (conflict resolution + commit messages)`);
     if (opts.engine) {
       console.log(`  AI engine:  ✓ active`);
       console.log(`    • triage: auto-specifying tasks`);

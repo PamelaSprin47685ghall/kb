@@ -2,13 +2,18 @@ import express from "express";
 import { join, dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { TaskStore } from "@hai/core";
+import type { TaskStore, MergeResult } from "@hai/core";
 import { createApiRoutes } from "./routes.js";
 import { createSSE } from "./sse.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export function createServer(store: TaskStore): ReturnType<typeof express> {
+export interface ServerOptions {
+  /** Custom merge handler — when provided, used instead of store.mergeTask */
+  onMerge?: (taskId: string) => Promise<MergeResult>;
+}
+
+export function createServer(store: TaskStore, options?: ServerOptions): ReturnType<typeof express> {
   const app = express();
 
   app.use(express.json());
@@ -25,7 +30,7 @@ export function createServer(store: TaskStore): ReturnType<typeof express> {
   app.get("/api/events", createSSE(store));
 
   // REST API
-  app.use("/api", createApiRoutes(store));
+  app.use("/api", createApiRoutes(store, options));
 
   // SPA fallback
   app.get("/{*splat}", (_req, res) => {
