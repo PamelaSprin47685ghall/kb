@@ -17,8 +17,8 @@ export interface TaskDetail extends Task {
 }
 
 export interface TaskCreateInput {
-  title: string;
-  description?: string;
+  title?: string;
+  description: string;
   column?: Column;
   dependencies?: string[];
 }
