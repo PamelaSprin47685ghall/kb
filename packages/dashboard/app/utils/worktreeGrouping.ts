@@ -1,5 +1,4 @@
 import type { Task } from "@hai/core";
-import { resolveDependencyOrder } from "@hai/core";
 
 export interface WorktreeGroupData {
   label: string;
@@ -15,6 +14,36 @@ export function getWorktreeLabel(worktreePath: string): string {
   // Take the last segment of the path
   const segments = worktreePath.replace(/\/+$/, "").split("/");
   return segments[segments.length - 1] || worktreePath;
+}
+
+/**
+ * Topological sort of tasks by dependency order.
+ * Mirrors resolveDependencyOrder from @hai/core but inlined to avoid
+ * build alias issues (Vite aliases @hai/core to types.ts only).
+ */
+function resolveDependencyOrder(tasks: Task[]): string[] {
+  const taskMap = new Map(tasks.map((t) => [t.id, t]));
+  const ordered: string[] = [];
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+
+  function visit(id: string): void {
+    if (visited.has(id)) return;
+    if (visiting.has(id)) return;
+    visiting.add(id);
+    const task = taskMap.get(id);
+    if (task) {
+      for (const depId of task.dependencies) {
+        if (taskMap.has(depId)) visit(depId);
+      }
+    }
+    visiting.delete(id);
+    visited.add(id);
+    ordered.push(id);
+  }
+
+  for (const task of tasks) visit(task.id);
+  return ordered;
 }
 
 /**
