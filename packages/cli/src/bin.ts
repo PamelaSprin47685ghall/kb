@@ -8,7 +8,7 @@ hai — AI-orchestrated task board
 
 Usage:
   hai dashboard              Start the board web UI
-  hai task create [title]    Create a new task (goes to triage)
+  hai task create [desc]     Create a new task (goes to triage)
   hai task list              List all tasks
   hai task move <id> <col>   Move a task to a column
   hai task merge <id>        Merge an in-review task and close it
