@@ -75,7 +75,6 @@ export class TaskExecutor {
     console.log(`[executor] Starting ${task.id}: ${task.title}`);
 
     try {
-      await this.store.setStatus(task.id, "executing");
       // Check dependencies
       const allTasks = await this.store.listTasks();
       const unmetDeps = task.dependencies.filter((depId) => {
@@ -147,7 +146,6 @@ export class TaskExecutor {
       }
     } catch (err: any) {
       console.error(`[executor] ✗ ${task.id} execution failed:`, err.message);
-      await this.store.setStatus(task.id, "idle");
       this.options.onError?.(task, err);
     } finally {
       this.executing.delete(task.id);

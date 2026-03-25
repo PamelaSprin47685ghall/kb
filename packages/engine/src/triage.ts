@@ -99,7 +99,6 @@ export class TriageProcessor {
     console.log(`[triage] Specifying ${task.id}: ${task.title}`);
     this.options.onSpecifyStart?.(task);
 
-    await this.store.setStatus(task.id, "specifying");
 
     try {
       // Get the full task detail including current prompt
@@ -132,7 +131,6 @@ export class TriageProcessor {
       }
     } catch (err: any) {
       console.error(`[triage] ✗ ${task.id} specification failed:`, err.message);
-      await this.store.setStatus(task.id, "idle");
       this.options.onSpecifyError?.(task, err);
     } finally {
       this.processing.delete(task.id);

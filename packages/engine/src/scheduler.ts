@@ -78,14 +78,12 @@ export class Scheduler {
         });
 
         if (unmetDeps.length > 0) {
-          await this.store.setStatus(task.id, "blocked");
           this.options.onBlocked?.(task, unmetDeps);
           continue;
         }
 
         // Dependencies met — check concurrency
         if (started >= available) {
-          await this.store.setStatus(task.id, "queued");
           continue;
         }
 
