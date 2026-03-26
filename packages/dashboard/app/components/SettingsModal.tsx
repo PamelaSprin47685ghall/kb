@@ -9,7 +9,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
-  const [form, setForm] = useState<Settings>({ maxConcurrent: 2, maxWorktrees: 4, pollIntervalMs: 15000 });
+  const [form, setForm] = useState<Settings>({ maxConcurrent: 2, maxWorktrees: 4, pollIntervalMs: 15000, autoMerge: false });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
