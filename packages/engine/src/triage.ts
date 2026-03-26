@@ -1,4 +1,4 @@
-import type { TaskStore, Task, TaskDetail } from "@hai/core";
+import type { TaskStore, Task, TaskDetail, Settings } from "@hai/core";
 import { Type } from "@mariozechner/pi-ai";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { createHaiAgent } from "./pi.js";
@@ -137,6 +137,12 @@ write a PROMPT.md. Instead, write a single line to the output file:
 - Review level scoring: Blast radius (0-2), Pattern novelty (0-2), Security (0-2), Reversibility (0-2)
   - 0-1 → Level 0, 2-3 → Level 1, 4-5 → Level 2, 6-8 → Level 3
 
+## Project commands
+When the user prompt includes a "Project Commands" section with test and/or build
+commands, use those EXACT commands in the testing/verification steps and anywhere
+the spec references running tests or builds. Do NOT guess or infer commands from
+package.json when explicit commands are provided.
+
 ## Output
 Write the PROMPT.md directly using the write tool. Nothing else.`;
 
@@ -206,6 +212,7 @@ export class TriageProcessor {
 
     try {
       const detail = await this.store.getTask(task.id);
+      const settings = await this.store.getSettings();
       const promptPath = `.hai/tasks/${task.id}/PROMPT.md`;
 
       const agentWork = async () => {
@@ -220,7 +227,7 @@ export class TriageProcessor {
         });
 
         try {
-          const agentPrompt = buildSpecificationPrompt(detail, promptPath);
+          const agentPrompt = buildSpecificationPrompt(detail, promptPath, settings);
           await session.prompt(agentPrompt);
 
           // Check if the agent flagged a duplicate
@@ -330,7 +337,16 @@ export class TriageProcessor {
   }
 }
 
-function buildSpecificationPrompt(task: TaskDetail, promptPath: string): string {
+export function buildSpecificationPrompt(task: TaskDetail, promptPath: string, settings?: Settings): string {
+  let commandsSection = "";
+  if (settings?.testCommand || settings?.buildCommand) {
+    const lines = ["## Project Commands"];
+    if (settings.testCommand) lines.push(`- **Test:** \`${settings.testCommand}\``);
+    if (settings.buildCommand) lines.push(`- **Build:** \`${settings.buildCommand}\``);
+    lines.push("Use these exact commands in testing/verification steps.");
+    commandsSection = "\n\n" + lines.join("\n");
+  }
+
   return `Specify this task and write the result to \`${promptPath}\`.
 
 ## Task
@@ -345,5 +361,5 @@ ${task.dependencies.length > 0 ? `- **Dependencies:** ${task.dependencies.join("
 3. The specification must be detailed enough for an autonomous AI agent to implement without asking questions
 4. Name actual files, functions, and patterns from the codebase — be specific
 
-Use the write tool to write the specification file.`;
+Use the write tool to write the specification file.${commandsSection}`;
 }
