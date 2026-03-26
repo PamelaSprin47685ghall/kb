@@ -260,6 +260,74 @@ export class TriageProcessor {
       this.processing.delete(task.id);
     }
   }
+
+  private createTriageTools(): ToolDefinition[] {
+    const store = this.store;
+
+    const taskList: ToolDefinition = {
+      name: "task_list",
+      label: "List Tasks",
+      description:
+        "List all tasks that aren't done. Returns ID, description, column, " +
+        "and dependencies for each. Use to check for duplicates before specifying.",
+      parameters: Type.Object({}),
+      execute: async () => {
+        const tasks = await store.listTasks();
+        const active = tasks.filter((t) => t.column !== "done");
+        if (active.length === 0) {
+          return {
+            content: [{ type: "text" as const, text: "No active tasks." }],
+            details: {},
+          };
+        }
+        const lines = active.map((t) => {
+          const desc = t.title || t.description.slice(0, 80);
+          const deps = t.dependencies.length ? ` [deps: ${t.dependencies.join(", ")}]` : "";
+          return `${t.id} (${t.column}): ${desc}${deps}`;
+        });
+        return {
+          content: [{ type: "text" as const, text: lines.join("\n") }],
+          details: {},
+        };
+      },
+    };
+
+    const taskGet: ToolDefinition = {
+      name: "task_get",
+      label: "Get Task",
+      description:
+        "Get full details of a specific task including its PROMPT.md content. " +
+        "Use to verify whether a similar task is actually a duplicate.",
+      parameters: Type.Object({
+        id: Type.String({ description: "Task ID (e.g. HAI-001)" }),
+      }),
+      execute: async (_callId, params) => {
+        try {
+          const task = await store.getTask(params.id);
+          const parts = [
+            `ID: ${task.id}`,
+            `Column: ${task.column}`,
+            `Description: ${task.description}`,
+            task.dependencies.length ? `Dependencies: ${task.dependencies.join(", ")}` : null,
+            "",
+            "PROMPT.md:",
+            task.prompt || "(not yet specified)",
+          ].filter(Boolean);
+          return {
+            content: [{ type: "text" as const, text: parts.join("\n") }],
+            details: {},
+          };
+        } catch {
+          return {
+            content: [{ type: "text" as const, text: `Task ${params.id} not found.` }],
+            details: {},
+          };
+        }
+      },
+    };
+
+    return [taskList, taskGet];
+  }
 }
 
 function buildSpecificationPrompt(task: TaskDetail, promptPath: string): string {
