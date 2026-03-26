@@ -244,6 +244,21 @@ describe("TaskStore", () => {
     });
   });
 
+  // ── Settings tests ────────────────────────────────────────────────
+
+  describe("worktreeInitCommand setting", () => {
+    it("persists worktreeInitCommand and returns it via getSettings", async () => {
+      await store.updateSettings({ worktreeInitCommand: "pnpm install" });
+      const settings = await store.getSettings();
+      expect(settings.worktreeInitCommand).toBe("pnpm install");
+    });
+
+    it("default settings do not include worktreeInitCommand", async () => {
+      const settings = await store.getSettings();
+      expect(settings.worktreeInitCommand).toBeUndefined();
+    });
+  });
+
   // ── Concurrent stress test ───────────────────────────────────────
 
   describe("concurrent stress", () => {
