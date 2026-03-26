@@ -1,7 +1,7 @@
 import { exec } from "node:child_process";
 import { TaskStore } from "@hai/core";
 import { createServer } from "@hai/dashboard";
-import { TriageProcessor, TaskExecutor, Scheduler, AgentSemaphore, aiMergeTask } from "@hai/engine";
+import { TriageProcessor, TaskExecutor, Scheduler, AgentSemaphore, WorktreePool, aiMergeTask } from "@hai/engine";
 
 function openBrowser(url: string): void {
   const cmd =
@@ -32,11 +32,25 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
   let cachedMaxConcurrent = initialSettings.maxConcurrent;
   const semaphore = new AgentSemaphore(() => cachedMaxConcurrent);
 
+  // ── Shared worktree pool ──────────────────────────────────────────
+  //
+  // Enables worktree recycling across tasks when `recycleWorktrees` is
+  // enabled in settings. Completed task worktrees are returned to the
+  // pool instead of being deleted; new tasks acquire a warm worktree
+  // preserving build caches (node_modules, dist/, etc.).
+  //
+  // Created unconditionally — the `recycleWorktrees` gating logic lives
+  // inside TaskExecutor and aiMergeTask (see HAI-037). When the setting
+  // is off the pool simply stays empty.
+  //
+  const pool = new WorktreePool();
+
   // AI-powered merge handler (used by the web UI for manual merges).
   // Wrapped with the shared semaphore so merges count toward the global
   // concurrency limit alongside triage and execution agents.
   const rawMerge = (taskId: string) =>
     aiMergeTask(store, cwd, taskId, {
+      pool,
       onAgentText: (delta) => process.stdout.write(delta),
       onAgentTool: (name) => console.log(`[merger] tool: ${name}`),
     });
@@ -138,6 +152,7 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
 
     const executor = new TaskExecutor(store, cwd, {
       semaphore,
+      pool,
       onStart: (t, p) => console.log(`[engine] Executing ${t.id} in ${p}`),
       onComplete: (t) => console.log(`[engine] ✓ ${t.id} → in-review`),
       onError: (t, e) => console.log(`[engine] ✗ ${t.id}: ${e.message}`),
