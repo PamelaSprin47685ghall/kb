@@ -39,6 +39,12 @@ describe("Board", () => {
     expect(main.className).toContain("board");
   });
 
+  it("renders with id='board' for scroll targeting", () => {
+    renderBoard();
+    const main = screen.getByRole("main");
+    expect(main.id).toBe("board");
+  });
+
   it("renders all 5 columns", () => {
     renderBoard();
     for (const col of COLUMNS) {

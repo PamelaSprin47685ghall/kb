@@ -99,11 +99,12 @@ html, body {
 /* === Board === */
 .board {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(260px, 1fr));
   gap: 12px;
   padding: 16px 24px;
   height: calc(100vh - 57px);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .column {
@@ -113,6 +114,7 @@ html, body {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   overflow: hidden;
+  min-width: 260px;
   min-height: 0;
   transition: border-color 0.2s;
 }
