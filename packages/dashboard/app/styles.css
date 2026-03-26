@@ -185,6 +185,19 @@ html, body {
 .card:active { cursor: grabbing; }
 .card.dragging { opacity: 0.4; transform: scale(0.98); }
 
+/* Agent-active glow: animated border glow when an agent is actively working on a task.
+   Uses the in-progress column color to stay consistent with the theme. */
+.card.agent-active {
+  border-color: var(--in-progress);
+  box-shadow: 0 0 8px rgba(188, 140, 255, 0.4), 0 0 20px rgba(188, 140, 255, 0.15);
+  animation: agent-glow 2.5s ease-in-out infinite;
+}
+
+@keyframes agent-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(188, 140, 255, 0.4), 0 0 20px rgba(188, 140, 255, 0.15); }
+  50%      { box-shadow: 0 0 12px rgba(188, 140, 255, 0.6), 0 0 28px rgba(188, 140, 255, 0.25); }
+}
+
 .card-header {
   display: flex;
   align-items: center;
