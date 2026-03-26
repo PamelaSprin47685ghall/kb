@@ -244,7 +244,7 @@ export class TaskExecutor {
       // Create or reuse worktree — try pool first when recycling is enabled
       const branchName = `hai/${task.id.toLowerCase()}`;
       let worktreePath = task.worktree || join(this.rootDir, ".worktrees", task.id);
-      const isResume = existsSync(worktreePath);
+      let isResume = existsSync(worktreePath);
       let acquiredFromPool = false;
 
       if (!isResume) {
@@ -287,7 +287,6 @@ export class TaskExecutor {
       } else {
         worktreePath = task.worktree || join(this.rootDir, ".worktrees", generateWorktreeName(this.rootDir));
         isResume = existsSync(worktreePath);
-        isReuse = false;
         this.createWorktree(branchName, worktreePath);
       }
 
