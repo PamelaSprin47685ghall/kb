@@ -133,6 +133,32 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
               />
               <small>Shell command to run in each new worktree after creation</small>
             </div>
+            <div className="form-group">
+              <label htmlFor="testCommand">Test Command</label>
+              <input
+                id="testCommand"
+                type="text"
+                placeholder="e.g. pnpm test"
+                value={form.testCommand || ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, testCommand: e.target.value || undefined }))
+                }
+              />
+              <small>Command used to run tests — injected into generated task specs</small>
+            </div>
+            <div className="form-group">
+              <label htmlFor="buildCommand">Build Command</label>
+              <input
+                id="buildCommand"
+                type="text"
+                placeholder="e.g. pnpm build"
+                value={form.buildCommand || ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, buildCommand: e.target.value || undefined }))
+                }
+              />
+              <small>Command used to build the project — injected into generated task specs</small>
+            </div>
           </div>
         )}
         <div className="modal-actions">

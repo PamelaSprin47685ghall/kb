@@ -62,6 +62,10 @@ export interface Settings {
   /** Shell command to run inside each new worktree immediately after creation.
    *  Useful for project-specific setup (e.g. `pnpm install`, `cp .env.local .env`). */
   worktreeInitCommand?: string;
+  /** Custom test command for the project (e.g. "pnpm test") */
+  testCommand?: string;
+  /** Custom build command for the project (e.g. "pnpm build") */
+  buildCommand?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

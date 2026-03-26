@@ -6,8 +6,9 @@ vi.mock("./pi.js", () => ({
   createHaiAgent: vi.fn(),
 }));
 
-import { TriageProcessor } from "./triage.js";
+import { TriageProcessor, buildSpecificationPrompt } from "./triage.js";
 import { createHaiAgent } from "./pi.js";
+import type { TaskDetail } from "@hai/core";
 
 const mockedCreateHaiAgent = vi.mocked(createHaiAgent);
 
@@ -29,7 +30,31 @@ function createMockStore(tasks: any[] = []) {
     }),
     updateTask: vi.fn().mockResolvedValue({}),
     moveTask: vi.fn().mockResolvedValue({}),
+    getSettings: vi.fn().mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    }),
   } as any;
+}
+
+function createMockTaskDetail(overrides: Partial<TaskDetail> = {}): TaskDetail {
+  return {
+    id: "HAI-001",
+    title: "Test Task",
+    description: "A test task",
+    column: "triage",
+    dependencies: [],
+    steps: [],
+    currentStep: 0,
+    log: [],
+    prompt: "",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
 }
 
 describe("TriageProcessor with semaphore", () => {
@@ -144,5 +169,74 @@ describe("TriageProcessor with semaphore", () => {
 
     expect(maxConcurrent).toBe(1);
     expect(sem.activeCount).toBe(0);
+  });
+});
+
+describe("buildSpecificationPrompt", () => {
+  it("includes project commands when testCommand is set", () => {
+    const task = createMockTaskDetail();
+    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", {
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      testCommand: "pnpm test",
+    });
+
+    expect(result).toContain("## Project Commands");
+    expect(result).toContain("**Test:** `pnpm test`");
+    expect(result).toContain("Use these exact commands");
+  });
+
+  it("includes project commands when buildCommand is set", () => {
+    const task = createMockTaskDetail();
+    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", {
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      buildCommand: "pnpm build",
+    });
+
+    expect(result).toContain("## Project Commands");
+    expect(result).toContain("**Build:** `pnpm build`");
+  });
+
+  it("includes both commands when both are set", () => {
+    const task = createMockTaskDetail();
+    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", {
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      testCommand: "npm test",
+      buildCommand: "npm run build",
+    });
+
+    expect(result).toContain("**Test:** `npm test`");
+    expect(result).toContain("**Build:** `npm run build`");
+  });
+
+  it("omits project commands section when neither command is set", () => {
+    const task = createMockTaskDetail();
+    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", {
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+
+    expect(result).not.toContain("## Project Commands");
+  });
+
+  it("omits project commands section when settings is undefined", () => {
+    const task = createMockTaskDetail();
+    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md");
+
+    expect(result).not.toContain("## Project Commands");
   });
 });
