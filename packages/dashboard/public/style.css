@@ -407,3 +407,29 @@ html, body {
   border-radius: var(--radius);
   margin: 4px;
 }
+
+/* === Mobile: horizontal scroll for board columns ===
+   On narrow viewports (≤768px) the board switches from a 5-column grid to a
+   horizontally-scrollable flex layout. Each column gets a minimum width so
+   content remains readable, and snap-scrolling gives a polished swipe feel. */
+@media (max-width: 768px) {
+  html, body {
+    overflow: hidden;
+  }
+
+  .board {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    padding: 12px 12px;
+    gap: 12px;
+  }
+
+  .board > .column {
+    min-width: 280px;
+    flex-shrink: 0;
+    scroll-snap-align: start;
+  }
+}
