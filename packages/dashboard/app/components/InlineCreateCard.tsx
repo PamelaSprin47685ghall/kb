@@ -2,6 +2,14 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Link } from "lucide-react";
 import type { Task, TaskCreateInput } from "@hai/core";
 import type { ToastType } from "../hooks/useToast";
+import { uploadAttachment } from "../api";
+
+const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+interface PendingImage {
+  file: File;
+  previewUrl: string;
+}
 
 interface InlineCreateCardProps {
   tasks: Task[];
@@ -15,11 +23,53 @@ export function InlineCreateCard({ tasks, onSubmit, onCancel, addToast }: Inline
   const [dependencies, setDependencies] = useState<string[]>([]);
   const [showDeps, setShowDeps] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  // Clean up object URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      pendingImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cleanup only on unmount
+  }, []);
+
+  /**
+   * Handles paste events on the textarea. Extracts image files from the
+   * clipboard data, creates object URL previews, and appends them to
+   * the pendingImages state. Non-image files are silently ignored.
+   */
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      if (submitting) return;
+      const files = e.clipboardData?.files;
+      if (!files || files.length === 0) return;
+
+      const newImages: PendingImage[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (ALLOWED_IMAGE_TYPES.includes(file.type)) {
+          newImages.push({ file, previewUrl: URL.createObjectURL(file) });
+        }
+      }
+      if (newImages.length > 0) {
+        setPendingImages((prev) => [...prev, ...newImages]);
+      }
+    },
+    [submitting],
+  );
+
+  const removeImage = useCallback((index: number) => {
+    setPendingImages((prev) => {
+      const removed = prev[index];
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
   }, []);
 
   const handleKeyDown = useCallback(
@@ -39,6 +89,26 @@ export function InlineCreateCard({ tasks, onSubmit, onCancel, addToast }: Inline
             column: "triage",
             dependencies: dependencies.length ? dependencies : undefined,
           });
+
+          // Upload pending images as attachments
+          if (pendingImages.length > 0) {
+            const failures: string[] = [];
+            for (const img of pendingImages) {
+              try {
+                await uploadAttachment(task.id, img.file);
+              } catch {
+                failures.push(img.file.name);
+              }
+            }
+            if (failures.length > 0) {
+              addToast(`Failed to upload: ${failures.join(", ")}`, "error");
+            }
+          }
+
+          // Clean up preview URLs
+          pendingImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+          setPendingImages([]);
+
           addToast(`Created ${task.id}`, "success");
         } catch (err: any) {
           addToast(err.message, "error");
@@ -47,7 +117,7 @@ export function InlineCreateCard({ tasks, onSubmit, onCancel, addToast }: Inline
         }
       }
     },
-    [description, dependencies, submitting, onSubmit, onCancel, addToast],
+    [description, dependencies, submitting, pendingImages, onSubmit, onCancel, addToast],
   );
 
   const toggleDep = useCallback((id: string) => {
@@ -74,8 +144,27 @@ export function InlineCreateCard({ tasks, onSubmit, onCancel, addToast }: Inline
           el.style.height = el.scrollHeight + "px";
         }}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         disabled={submitting}
       />
+      {pendingImages.length > 0 && (
+        <div className="inline-create-previews">
+          {pendingImages.map((img, i) => (
+            <div key={img.previewUrl} className="inline-create-preview">
+              <img src={img.previewUrl} alt={img.file.name} />
+              <button
+                type="button"
+                className="inline-create-preview-remove"
+                onClick={() => removeImage(i)}
+                disabled={submitting}
+                title="Remove image"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="inline-create-footer">
         <div className="dep-trigger-wrap">
           <button
