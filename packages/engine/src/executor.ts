@@ -20,64 +20,59 @@ You are working in a git worktree isolated from the main branch. Your job is to 
 
 ## Reporting progress via CLI
 
-Use \`hai task\` commands to report your progress. The board updates in real-time.
+Use the \`hai task\` CLI to report progress. The board updates in real-time.
+The task ID and concrete examples are provided in the execution prompt below.
 
-### Step lifecycle
-Before starting a step:
-\`\`\`bash
-hai task update {TASK_ID} {STEP_NUMBER} in-progress
-\`\`\`
+**Step lifecycle:**
+- Before starting a step: \`hai task update <ID> <STEP> in-progress\`
+- After completing a step: \`hai task update <ID> <STEP> done\`
+- If skipping a step: \`hai task update <ID> <STEP> skipped\`
 
-After completing a step:
-\`\`\`bash
-hai task update {TASK_ID} {STEP_NUMBER} done
-\`\`\`
+**Logging:** \`hai task log <ID> "description of what happened"\`
 
-If skipping a step:
-\`\`\`bash
-hai task update {TASK_ID} {STEP_NUMBER} skipped
-\`\`\`
+**Out-of-scope work:** \`hai task create "description of new work needed"\`
 
-### Logging
-Log important actions, decisions, or issues:
-\`\`\`bash
-hai task log {TASK_ID} "description of what happened"
-\`\`\`
+## Cross-model review via review_step tool
 
-### Out-of-scope work
-If you find something that needs doing but is outside this task's scope, create a new task:
-\`\`\`bash
-hai task create "description of the new work needed"
-\`\`\`
+You have a \`review_step\` tool available. It spawns a SEPARATE reviewer agent
+(different model, read-only access) to independently assess your work.
+
+**When to call it** — based on the Review Level in the PROMPT.md:
+
+| Review Level | Before implementing | After implementing + committing |
+|-------------|--------------------|---------------------------------|
+| 0 (None)    | —                  | —                               |
+| 1 (Plan)    | \`review_step(step, "plan", step_name)\` | —              |
+| 2 (Plan+Code) | \`review_step(step, "plan", step_name)\` | \`review_step(step, "code", step_name, baseline)\` |
+| 3 (Full)    | plan review        | code review + test review       |
+
+**Skip reviews for** Step 0 (Preflight) and the final documentation/delivery step.
+
+**Code review flow:**
+1. Before starting a step, capture baseline: \`git rev-parse HEAD\`
+2. Implement the step
+3. Commit
+4. Call \`review_step\` with the baseline SHA so the reviewer sees only your changes
+
+**Handling verdicts:**
+- **APPROVE** → proceed to next step
+- **REVISE** → read the feedback, fix the issues, commit again, then proceed
+- **RETHINK** → reconsider your approach, adjust plan, then implement
 
 ## Git discipline
 - Commit after completing each step (not after every file change)
-- Use conventional commit messages prefixed with the task ID:
-  - \`feat({TASK_ID}): complete Step N — description\`
-  - \`fix({TASK_ID}): description\`
-  - \`test({TASK_ID}): description\`
+- Use conventional commit messages prefixed with the task ID
 - Do NOT commit broken or half-implemented code
-
-## Review levels (from PROMPT.md)
-- **Level 0 (None):** Just implement
-- **Level 1 (Plan Only):** Before coding, outline your plan and verify it makes sense
-- **Level 2 (Plan + Code):** Plan first, then after implementation review your own code for issues
-- **Level 3 (Full):** Plan review, code review, and test review
 
 ## Guardrails
 - Stay within the file scope defined in PROMPT.md
 - Read "Context to Read First" files before starting
 - Follow the "Do NOT" section strictly
-- If you find work outside the task's scope, create a new task with \`hai task create "description"\`
+- If you find work outside the task's scope, create a new task with \`hai task create\`
 - Update documentation listed in "Must Update" and check "Check If Affected"
 
-## Documentation
-The PROMPT.md has Documentation Requirements sections:
-- **Must Update** — docs you MUST modify as part of this task
-- **Check If Affected** — docs to review and update if your changes affect them
-
 ## Completion
-After all steps are done, tests pass, and docs are updated, create a \`.DONE\` file:
+After all steps are done, tests pass, and docs are updated:
 \`\`\`bash
 echo "done" > .DONE
 \`\`\``;
@@ -142,16 +137,12 @@ export class TaskExecutor {
       // Read the task's PROMPT.md
       const detail = await this.store.getTask(task.id);
 
-      // Parse steps into task.json if not already there
+      // Initialize steps from PROMPT.md if not already there
       if (detail.steps.length === 0) {
         const steps = await this.store.parseStepsFromPrompt(task.id);
         if (steps.length > 0) {
-          // Write steps back
-          const taskData = await this.store.getTask(task.id);
-          taskData.steps = steps;
-          await this.store.updateTask(task.id, {});
-          // Re-read to get updated task with steps written by parseSteps
-          // Actually we need a better approach - let updateStep handle lazy init
+          // Write steps via updateStep to trigger the lazy init path
+          await this.store.updateStep(task.id, 0, "pending");
         }
       }
 
@@ -171,7 +162,7 @@ export class TaskExecutor {
       });
 
       try {
-        const agentPrompt = buildExecutionPrompt(detail, this.rootDir);
+        const agentPrompt = buildExecutionPrompt(detail);
         await session.prompt(agentPrompt);
 
         // Check completion
@@ -197,23 +188,6 @@ export class TaskExecutor {
     } finally {
       this.executing.delete(task.id);
     }
-  }
-
-  private createWorktree(branch: string, path: string): void {
-    if (existsSync(path)) {
-      console.log(`[executor] Worktree already exists: ${path}`);
-      return;
-    }
-    try {
-      execSync(`git worktree add -b "${branch}" "${path}"`, { cwd: this.rootDir, stdio: "pipe" });
-    } catch {
-      try {
-        execSync(`git worktree add "${path}" "${branch}"`, { cwd: this.rootDir, stdio: "pipe" });
-      } catch (e: any) {
-        throw new Error(`Failed to create worktree: ${e.message}`);
-      }
-    }
-    console.log(`[executor] Worktree created: ${path}`);
   }
 
   /**
@@ -276,7 +250,6 @@ export class TaskExecutor {
             },
           );
 
-          // Log the result
           await store.logEntry(
             taskId,
             `${reviewType} review Step ${step}: ${result.verdict}`,
@@ -287,7 +260,6 @@ export class TaskExecutor {
             `[reviewer] ${taskId}: Step ${step} ${reviewType} → ${result.verdict}`,
           );
 
-          // Format response for the worker
           let text: string;
           switch (result.verdict) {
             case "APPROVE":
@@ -308,26 +280,33 @@ export class TaskExecutor {
             details: {},
           };
         } catch (err: any) {
-          console.error(
-            `[reviewer] ${taskId}: review failed: ${err.message}`,
-          );
-          await store.logEntry(
-            taskId,
-            `${reviewType} review failed: ${err.message}`,
-          );
+          console.error(`[reviewer] ${taskId}: review failed: ${err.message}`);
+          await store.logEntry(taskId, `${reviewType} review failed: ${err.message}`);
 
           return {
-            content: [
-              {
-                type: "text" as const,
-                text: `UNAVAILABLE — reviewer error: ${err.message}`,
-              },
-            ],
+            content: [{ type: "text" as const, text: `UNAVAILABLE — reviewer error: ${err.message}` }],
             details: {},
           };
         }
       },
     };
+  }
+
+  private createWorktree(branch: string, path: string): void {
+    if (existsSync(path)) {
+      console.log(`[executor] Worktree already exists: ${path}`);
+      return;
+    }
+    try {
+      execSync(`git worktree add -b "${branch}" "${path}"`, { cwd: this.rootDir, stdio: "pipe" });
+    } catch {
+      try {
+        execSync(`git worktree add "${path}" "${branch}"`, { cwd: this.rootDir, stdio: "pipe" });
+      } catch (e: any) {
+        throw new Error(`Failed to create worktree: ${e.message}`);
+      }
+    }
+    console.log(`[executor] Worktree created: ${path}`);
   }
 
   async cleanup(taskId: string): Promise<void> {
@@ -347,31 +326,49 @@ export class TaskExecutor {
   }
 }
 
-function buildExecutionPrompt(task: TaskDetail, rootDir: string): string {
-  return `Execute this task. Read the PROMPT.md specification below, then implement it.
+function buildExecutionPrompt(task: TaskDetail): string {
+  // Extract review level from PROMPT.md
+  const reviewMatch = task.prompt.match(/##\s*Review Level[:\s]*(\d)/);
+  const reviewLevel = reviewMatch ? parseInt(reviewMatch[1], 10) : 0;
 
-## Task Info
-- **ID:** ${task.id}
-- **Title:** ${task.title || task.description.slice(0, 80)}
-${task.dependencies.length > 0 ? `- **Dependencies:** ${task.dependencies.join(", ")}` : ""}
+  return `Execute this task.
+
+## Task: ${task.id}
+${task.title ? `**${task.title}**` : ""}
+${task.dependencies.length > 0 ? `Dependencies: ${task.dependencies.join(", ")}` : ""}
 
 ## PROMPT.md
 
 ${task.prompt}
 
-## Instructions
+## CLI Commands for this task
 
-1. Read "Context to Read First" files listed in the spec
-2. Report progress using the \`hai task\` CLI:
-   - \`hai task update ${task.id} 0 in-progress\` — when starting Step 0
-   - \`hai task update ${task.id} 0 done\` — when Step 0 is complete
-   - \`hai task log ${task.id} "what you did"\` — for important actions
-   - \`hai task create "description"\` — for out-of-scope work found during execution
-3. Implement each step in order, committing at step boundaries:
-   \`git commit -m "feat(${task.id}): complete Step N — description"\`
-4. Follow the review level guidance in the spec
-5. Update documentation per "Must Update" and "Check If Affected"
-6. When all steps pass: \`echo "done" > .DONE\`
+Report progress as you work:
+\`\`\`bash
+# Step lifecycle
+hai task update ${task.id} <STEP_NUMBER> in-progress
+hai task update ${task.id} <STEP_NUMBER> done
 
-Begin with Step 0 (Preflight).`;
+# Log important actions
+hai task log ${task.id} "what you did"
+
+# Out-of-scope work → new task
+hai task create "description"
+\`\`\`
+
+## Review level: ${reviewLevel}
+
+${reviewLevel === 0 ? "No reviews required. Implement directly." : ""}
+${reviewLevel >= 1 ? `Before implementing each step (except Step 0 and the final step), call:
+\`review_step(step=N, type="plan", step_name="...")\`` : ""}
+${reviewLevel >= 2 ? `After implementing + committing each step, call:
+\`review_step(step=N, type="code", step_name="...", baseline="<SHA from before step>")\`` : ""}
+${reviewLevel >= 3 ? `After tests, also call review_step with type="code" for test review.` : ""}
+
+## Begin
+
+Start with Step 0 (Preflight). Work through each step in order.
+Use \`hai task update\` to report progress on every step transition.
+Commit at step boundaries: \`git commit -m "feat(${task.id}): complete Step N — description"\`
+When done: \`echo "done" > .DONE\``;
 }
