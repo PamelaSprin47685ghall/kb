@@ -47,8 +47,13 @@ function resolveDependencyOrder(tasks: Task[]): string[] {
 }
 
 /**
- * Group in-progress tasks by worktree and distribute queued todo tasks
- * as visual previews across the worktree groups.
+ * Group in-progress tasks by worktree and collect queued todo tasks
+ * as visual previews in the "Up Next" group.
+ *
+ * Queued tasks (eligible "todo" tasks whose dependencies are all satisfied)
+ * are always placed in the "Up Next" group — they are never distributed
+ * to worktree-specific groups since they have no worktree assignment yet.
+ * The number of queued tasks shown is capped at `maxConcurrent`.
  */
 export function groupByWorktree(
   inProgressTasks: Task[],
@@ -105,26 +110,14 @@ export function groupByWorktree(
     });
   }
 
-  // Distribute queued tasks round-robin across active worktree groups (one per group)
-  const activeGroups = groups.filter((g) => g.label !== "Unassigned");
-  let queueIdx = 0;
-
-  if (activeGroups.length > 0 && orderedEligible.length > 0) {
-    for (let i = 0; i < activeGroups.length && queueIdx < orderedEligible.length; i++) {
-      activeGroups[i].queuedTasks.push(orderedEligible[queueIdx++]);
-    }
-  }
-
-  // Remaining queued tasks go into "Up Next" overflow group
-  if (queueIdx < orderedEligible.length) {
-    const remaining = orderedEligible.slice(queueIdx, queueIdx + maxConcurrent);
-    if (remaining.length > 0) {
-      groups.push({
-        label: "Up Next",
-        activeTasks: [],
-        queuedTasks: remaining,
-      });
-    }
+  // All eligible queued tasks go into the "Up Next" group (capped at maxConcurrent)
+  const queued = orderedEligible.slice(0, maxConcurrent);
+  if (queued.length > 0) {
+    groups.push({
+      label: "Up Next",
+      activeTasks: [],
+      queuedTasks: queued,
+    });
   }
 
   return groups;
