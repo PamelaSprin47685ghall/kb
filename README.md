@@ -214,6 +214,8 @@ Download the latest binary from the [GitHub Releases](../../releases) page. Each
 | macOS x64 (Intel) | `hai-darwin-x64` | `macos-13` |
 | Windows x64 | `hai-windows-x64.exe` | `windows-latest` |
 
+macOS and Windows binaries are **code-signed** to avoid OS security warnings (Gatekeeper/SmartScreen). See [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) for setup details.
+
 ### Triggering a release
 
 Releases are automated via [changesets](https://github.com/changesets/changesets). See [RELEASING.md](./RELEASING.md) for the full workflow.

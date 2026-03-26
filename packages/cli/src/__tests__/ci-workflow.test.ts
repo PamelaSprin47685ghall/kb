@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, accessSync, constants } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
 
@@ -201,5 +201,102 @@ describe("Test Release workflow (.github/workflows/test-release.yml)", () => {
       expect(content).toContain("shasum -a 256");
       expect(content).toContain("Get-FileHash");
     });
+  });
+});
+
+describe("Code signing — Release workflow", () => {
+  let content: string;
+
+  beforeAll(() => {
+    const result = loadWorkflow("release.yml");
+    content = result.content;
+  });
+
+  it("contains macOS signing step referencing sign-macos.sh", () => {
+    expect(content).toContain("sign-macos.sh");
+  });
+
+  it("contains Windows signing step referencing sign-windows.ps1", () => {
+    expect(content).toContain("sign-windows.ps1");
+  });
+
+  it("macOS signing step is conditioned on runner.os", () => {
+    expect(content).toMatch(/if:.*runner\.os\s*==\s*'macOS'/);
+  });
+
+  it("Windows signing step is conditioned on runner.os", () => {
+    expect(content).toMatch(/if:.*runner\.os\s*==\s*'Windows'/);
+  });
+
+  it("references all required Apple secrets", () => {
+    const requiredSecrets = [
+      "APPLE_CERTIFICATE_BASE64",
+      "APPLE_CERTIFICATE_PASSWORD",
+      "APPLE_ID",
+      "APPLE_TEAM_ID",
+      "APPLE_APP_PASSWORD",
+    ];
+    for (const secret of requiredSecrets) {
+      expect(content).toContain(`secrets.${secret}`);
+    }
+  });
+
+  it("references Windows signing secrets", () => {
+    expect(content).toContain("secrets.WINDOWS_CERTIFICATE_BASE64");
+    expect(content).toContain("secrets.WINDOWS_CERTIFICATE_PASSWORD");
+  });
+
+  it("checksums step comes after signing steps", () => {
+    const signMacosIndex = content.indexOf("sign-macos.sh");
+    const signWindowsIndex = content.indexOf("sign-windows.ps1");
+    const checksumIndex = content.indexOf("Generate checksums");
+    expect(signMacosIndex).toBeLessThan(checksumIndex);
+    expect(signWindowsIndex).toBeLessThan(checksumIndex);
+  });
+});
+
+describe("Code signing — Test-release workflow", () => {
+  let content: string;
+
+  beforeAll(() => {
+    const result = loadWorkflow("test-release.yml");
+    content = result.content;
+  });
+
+  it("has macOS signing step with secret-availability guard", () => {
+    expect(content).toContain("sign-macos.sh");
+    expect(content).toMatch(/if:.*APPLE_CERTIFICATE_BASE64\s*!=\s*''/);
+  });
+
+  it("has Windows signing step with secret-availability guard", () => {
+    expect(content).toContain("sign-windows.ps1");
+    expect(content).toMatch(/if:.*WINDOWS_CERTIFICATE_BASE64\s*!=\s*''/);
+  });
+});
+
+describe("Code signing — Scripts", () => {
+  const scriptsDir = join(workspaceRoot, "scripts");
+
+  it("sign-macos.sh exists and is executable", () => {
+    const scriptPath = join(scriptsDir, "sign-macos.sh");
+    expect(() => accessSync(scriptPath, constants.F_OK)).not.toThrow();
+    expect(() => accessSync(scriptPath, constants.X_OK)).not.toThrow();
+  });
+
+  it("sign-windows.ps1 exists", () => {
+    const scriptPath = join(scriptsDir, "sign-windows.ps1");
+    expect(() => accessSync(scriptPath, constants.F_OK)).not.toThrow();
+  });
+
+  it("sign-macos.sh references codesign, notarytool, and security import", () => {
+    const script = readFileSync(join(scriptsDir, "sign-macos.sh"), "utf-8");
+    expect(script).toContain("codesign");
+    expect(script).toContain("notarytool");
+    expect(script).toContain("security import");
+  });
+
+  it("sign-windows.ps1 references signtool", () => {
+    const script = readFileSync(join(scriptsDir, "sign-windows.ps1"), "utf-8");
+    expect(script).toContain("signtool");
   });
 });

@@ -69,6 +69,42 @@ jobs:
       - name: Build standalone binary
         run: pnpm --filter hai build:exe -- --target ${{ matrix.target }}
 
+      - name: Rename binary with platform and arch
+        run: |
+          PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            x86_64) ARCH="x64" ;;
+            aarch64) ARCH="arm64" ;;
+          esac
+          cp packages/cli/dist/hai packages/cli/dist/hai-${PLATFORM}-${ARCH}
+
+      # Code signing steps — activate when cross-platform matrix is in place (HAI-079)
+      - name: Sign macOS binaries
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          for binary in packages/cli/dist/hai-darwin-*; do
+            [ -f "$binary" ] && bash scripts/sign-macos.sh "$binary"
+          done
+
+      - name: Sign Windows binaries
+        if: runner.os == 'Windows'
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          Get-ChildItem packages/cli/dist/hai-windows-*.exe | ForEach-Object {
+            & .\scripts\sign-windows.ps1 $_.FullName
+          }
+        shell: pwsh
+
       - name: Generate checksum (Linux)
         if: runner.os == 'Linux'
         run: |
