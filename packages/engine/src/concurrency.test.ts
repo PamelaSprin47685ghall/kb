@@ -228,15 +228,15 @@ describe("AgentSemaphore", () => {
   });
 
   it("integration: semaphore is optional (no-op when absent)", async () => {
-    const semaphore: AgentSemaphore | undefined = undefined;
+    const opts: { semaphore?: AgentSemaphore } = {};
     let ran = false;
 
     const agentWork = async () => {
       ran = true;
     };
 
-    if (semaphore) {
-      await semaphore.run(agentWork);
+    if (opts.semaphore) {
+      await opts.semaphore.run(agentWork);
     } else {
       await agentWork();
     }
