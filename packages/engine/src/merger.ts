@@ -241,6 +241,9 @@ export async function aiMergeTask(
     if (otherUser) {
       console.log(`[merger] Worktree retained — still needed by ${otherUser}`);
       result.worktreeRemoved = false;
+    } else if (options.pool && (await store.getSettings()).recycleWorktrees) {
+      options.pool.release(worktreePath);
+      result.worktreeRemoved = false;
     } else {
       try {
         execSync(`git worktree remove "${worktreePath}" --force`, {
