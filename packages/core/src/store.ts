@@ -186,6 +186,13 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
     return task;
   }
 
+  /**
+   * Read a task's JSON and prompt content.
+   *
+   * Retries once after a short delay on non-ENOENT errors to handle
+   * transient read failures caused by concurrent `writeFile` calls
+   * (e.g. partial JSON from a non-atomic write during executor updates).
+   */
   async getTask(id: string): Promise<TaskDetail> {
     const dir = this.taskDir(id);
     const task = await this.safeReadTaskJson(dir);
