@@ -494,22 +494,26 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
 
       // 2. Merge the branch
       try {
-        execSync(`git merge "${branch}" --no-edit`, {
+        execSync(`git merge --squash "${branch}"`, {
+          cwd: this.rootDir,
+          stdio: "pipe",
+        });
+        execSync(`git commit --no-edit -m "feat(${id}): merge ${branch}"`, {
           cwd: this.rootDir,
           stdio: "pipe",
         });
         result.merged = true;
       } catch (err: any) {
-        // Merge conflict — abort and report
+        // Squash conflict — reset and report
         try {
-          execSync("git merge --abort", { cwd: this.rootDir, stdio: "pipe" });
+          execSync("git reset --merge", { cwd: this.rootDir, stdio: "pipe" });
         } catch {
           // already clean
         }
         throw new Error(
           `Merge conflict merging '${branch}'. Resolve manually:\n` +
             `  cd ${this.rootDir}\n` +
-            `  git merge ${branch}\n` +
+            `  git merge --squash ${branch}\n` +
             `  # resolve conflicts, then: hai task move ${id} done`,
         );
       }

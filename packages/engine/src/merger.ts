@@ -6,7 +6,8 @@ import { createHaiAgent } from "./pi.js";
 
 const MERGE_SYSTEM_PROMPT = `You are a merge agent for "hai", an AI-orchestrated task board.
 
-Your job is to finalize a git merge: resolve any conflicts and write a good commit message.
+Your job is to finalize a squash merge: resolve any conflicts and write a good commit message.
+All changes from the branch are squashed into a single commit.
 
 ## Conflict resolution
 If there are merge conflicts:
@@ -18,22 +19,22 @@ If there are merge conflicts:
 6. Do NOT change anything beyond what's needed to resolve the conflict
 
 ## Commit message
-After all conflicts are resolved (or if there were none), write and execute the merge commit.
+After all conflicts are resolved (or if there were none), write and execute the squash commit.
 
 Look at the branch commits and diff to understand what was done, then run:
 \`\`\`
-git commit --no-edit -m "<type>(<scope>): <summary>" -m "<body>"
+git commit -m "<type>(<scope>): <summary>" -m "<body>"
 \`\`\`
 
 Message format:
 - **Type:** feat, fix, refactor, docs, test, chore
 - **Scope:** the task ID (e.g., HAI-001)
-- **Summary:** one line describing what the merge brings in (imperative mood)
+- **Summary:** one line describing what the squash brings in (imperative mood)
 - **Body:** 2-5 bullet points summarizing the key changes, each starting with "- "
 
 Example:
 \`\`\`
-git commit --no-edit -m "feat(HAI-003): add user profile page" -m "- Add /profile route with avatar upload
+git commit -m "feat(HAI-003): add user profile page" -m "- Add /profile route with avatar upload
 - Create ProfileCard and EditProfileForm components
 - Add profile image resizing via sharp
 - Update nav bar with profile link
@@ -41,7 +42,7 @@ git commit --no-edit -m "feat(HAI-003): add user profile page" -m "- Add /profil
 \`\`\`
 
 Do NOT use generic messages like "merge branch" or "resolve conflicts".
-Base the message on the ACTUAL work done in the commits.`;
+Base the message on the ACTUAL work done in the branch commits.`;
 
 export interface MergerOptions {
   /** Called with agent text output */
@@ -113,7 +114,7 @@ export async function aiMergeTask(
   // 4. Start the merge (--no-commit so the agent controls the message)
   let hasConflicts = false;
   try {
-    execSync(`git merge "${branch}" --no-commit --no-ff`, {
+    execSync(`git merge --squash "${branch}"`, {
       cwd: rootDir,
       stdio: "pipe",
     });
@@ -129,7 +130,7 @@ export async function aiMergeTask(
       if (!hasConflicts) {
         // Not conflicts — some other merge failure. Abort and throw.
         try {
-          execSync("git merge --abort", { cwd: rootDir, stdio: "pipe" });
+          execSync("git reset --merge", { cwd: rootDir, stdio: "pipe" });
         } catch { /* */ }
         throw new Error(`Merge failed for branch '${branch}'`);
       }
@@ -137,7 +138,7 @@ export async function aiMergeTask(
       if (e.message.includes("Merge failed")) throw e;
       // git diff itself failed — abort
       try {
-        execSync("git merge --abort", { cwd: rootDir, stdio: "pipe" });
+        execSync("git reset --merge", { cwd: rootDir, stdio: "pipe" });
       } catch { /* */ }
       throw new Error(`Merge failed for branch '${branch}'`);
     }
@@ -162,20 +163,17 @@ export async function aiMergeTask(
     const prompt = buildMergePrompt(taskId, branch, commitLog, diffStat, hasConflicts);
     await session.prompt(prompt);
 
-    // 6. Verify the commit happened — if MERGE_HEAD still exists, agent didn't commit
-    let needsFallback = false;
-    try {
-      execSync("git rev-parse MERGE_HEAD", { cwd: rootDir, stdio: "pipe" });
-      // If we get here, MERGE_HEAD exists = still uncommitted
-      needsFallback = true;
-    } catch {
-      // MERGE_HEAD doesn't exist = commit was made successfully
-    }
+    // 6. Verify the commit happened — if there are still staged changes, agent didn't commit
+    const staged = execSync("git diff --cached --quiet 2>&1; echo $?", {
+      cwd: rootDir,
+      encoding: "utf-8",
+    }).trim();
 
-    if (needsFallback) {
+    if (staged !== "0") {
       console.log("[merger] Agent didn't commit — committing with fallback message");
+      const escapedLog = commitLog.replace(/"/g, '\\"');
       execSync(
-        `git commit --no-edit -m "feat(${taskId}): merge ${branch}" -m "${commitLog}"`,
+        `git commit -m "feat(${taskId}): merge ${branch}" -m "${escapedLog}"`,
         { cwd: rootDir, stdio: "pipe" },
       );
     }
@@ -185,7 +183,7 @@ export async function aiMergeTask(
     // Agent failed — try to abort the merge
     console.error(`[merger] Agent failed: ${err.message}`);
     try {
-      execSync("git merge --abort", { cwd: rootDir, stdio: "pipe" });
+      execSync("git reset --merge", { cwd: rootDir, stdio: "pipe" });
     } catch { /* */ }
     throw new Error(`AI merge failed for ${taskId}: ${err.message}`);
   } finally {
