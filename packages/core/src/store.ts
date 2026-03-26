@@ -197,9 +197,9 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
     // Update cache if watcher is active
     if (this.watcher) this.taskCache.set(id, { ...task });
 
-    const heading = task.title || task.description;
+    const heading = task.title ? `${id}: ${task.title}` : id;
     const prompt = task.column === "triage"
-      ? `# ${id}: ${heading}\n\n${task.description}\n`
+      ? `# ${heading}\n\n${task.description}\n`
       : this.generateSpecifiedPrompt(task);
     await writeFile(join(dir, "PROMPT.md"), prompt);
 
@@ -835,15 +835,15 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
         ? task.dependencies.map((d) => `- **Task:** ${d}`).join("\n")
         : "- **None**";
 
-    const heading = task.title || task.description;
-    return `# ${task.id}: ${heading}
+    const heading = task.title ? `${task.id}: ${task.title}` : task.id;
+    return `# ${heading}
 
 **Created:** ${task.createdAt.split("T")[0]}
 **Size:** M
 
 ## Mission
 
-${task.description || task.title}
+${task.description}
 
 ## Dependencies
 

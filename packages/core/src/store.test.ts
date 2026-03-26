@@ -55,6 +55,58 @@ describe("TaskStore", () => {
     return task;
   }
 
+  // ── Prompt generation (no duplicate description) ───────────────
+
+  describe("prompt generation", () => {
+    it("triage task without title does not duplicate description in PROMPT.md", async () => {
+      const task = await store.createTask({ description: "Fix the login bug" });
+      const detail = await store.getTask(task.id);
+
+      // Heading should be just the ID, not the description
+      expect(detail.prompt).toMatch(/^# HAI-001\n/);
+      // Description appears exactly once
+      const count = detail.prompt.split("Fix the login bug").length - 1;
+      expect(count).toBe(1);
+    });
+
+    it("triage task with title uses title in heading and description in body", async () => {
+      const task = await store.createTask({
+        title: "Login bug",
+        description: "Fix the login bug on the settings page",
+      });
+      const detail = await store.getTask(task.id);
+
+      expect(detail.prompt).toMatch(/^# HAI-001: Login bug\n/);
+      expect(detail.prompt).toContain("Fix the login bug on the settings page");
+    });
+
+    it("generateSpecifiedPrompt does not duplicate when title is absent", async () => {
+      const task = await store.createTask({
+        description: "Implement caching layer",
+        column: "todo",
+      });
+      const detail = await store.getTask(task.id);
+
+      // Heading should be just the ID
+      expect(detail.prompt).toMatch(/^# HAI-001\n/);
+      // Description appears exactly once (in Mission section)
+      const count = detail.prompt.split("Implement caching layer").length - 1;
+      expect(count).toBe(1);
+    });
+
+    it("generateSpecifiedPrompt uses title in heading when present", async () => {
+      const task = await store.createTask({
+        title: "Add caching",
+        description: "Implement caching layer for API responses",
+        column: "todo",
+      });
+      const detail = await store.getTask(task.id);
+
+      expect(detail.prompt).toMatch(/^# HAI-001: Add caching\n/);
+      expect(detail.prompt).toContain("Implement caching layer for API responses");
+    });
+  });
+
   // ── Lock serialization test ──────────────────────────────────────
 
   describe("write lock serialization", () => {

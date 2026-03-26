@@ -154,7 +154,7 @@ export function TaskDetailModal({
             {task.prompt ? (
               <div className="markdown-body">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {task.prompt}
+                  {task.prompt.replace(/^#\s+[^\n]*\n+/, "")}
                 </ReactMarkdown>
               </div>
             ) : (

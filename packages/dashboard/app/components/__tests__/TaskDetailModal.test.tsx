@@ -41,7 +41,7 @@ describe("TaskDetailModal", () => {
     expect(markdownDiv!.classList.contains("detail-prompt")).toBe(false);
   });
 
-  it("renders ReactMarkdown output (heading and bold text)", () => {
+  it("strips the leading heading from prompt and renders remaining markdown", () => {
     const { container } = render(
       <TaskDetailModal
         task={makeTask({ prompt: "# Hello\n\nSome **bold** text" })}
@@ -53,7 +53,8 @@ describe("TaskDetailModal", () => {
       />,
     );
 
-    expect(container.querySelector("h1")?.textContent).toBe("Hello");
+    // The leading # heading should be stripped (modal has its own header)
+    expect(container.querySelector(".markdown-body h1")).toBeNull();
     expect(container.querySelector("strong")?.textContent).toBe("bold");
   });
 
@@ -88,5 +89,30 @@ describe("TaskDetailModal", () => {
     );
 
     expect(screen.queryByText("PROMPT.md")).toBeNull();
+  });
+
+  it("shows description exactly once for a task without title", () => {
+    const { container } = render(
+      <TaskDetailModal
+        task={makeTask({
+          title: undefined,
+          description: "Fix the login bug",
+          prompt: "# HAI-099\n\nFix the login bug\n",
+        })}
+        onClose={noop}
+        onMoveTask={noopMove}
+        onDeleteTask={noopDelete}
+        onMergeTask={noopMerge}
+        addToast={noop}
+      />,
+    );
+
+    // The heading "HAI-099" should be stripped from the markdown
+    const markdownBody = container.querySelector(".markdown-body");
+    expect(markdownBody?.innerHTML).not.toContain("HAI-099");
+    // Description appears in the markdown body
+    expect(markdownBody?.textContent).toContain("Fix the login bug");
+    // The detail header shows the ID (not duplicated as markdown heading)
+    expect(container.querySelector(".detail-id")?.textContent).toBe("HAI-099");
   });
 });
