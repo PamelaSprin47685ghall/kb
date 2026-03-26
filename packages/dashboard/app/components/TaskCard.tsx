@@ -62,18 +62,20 @@ export function TaskCard({ task, queued, onOpenDetail, addToast }: TaskCardProps
       onDragEnd={queued ? undefined : handleDragEnd}
       onClick={handleClick}
     >
-      {task.status && (
-        <span
-          className={`card-status-badge${ACTIVE_STATUSES.has(task.status) ? " pulsing" : ""}`}
-          style={{
-            background: COLUMN_COLOR_MAP[task.column],
-            color: COLUMN_TEXT_COLOR_MAP[task.column],
-          }}
-        >
-          {task.status}
-        </span>
-      )}
-      <span className="card-id">{task.id}</span>
+      <div className="card-header">
+        <span className="card-id">{task.id}</span>
+        {task.status && (
+          <span
+            className={`card-status-badge${ACTIVE_STATUSES.has(task.status) ? " pulsing" : ""}`}
+            style={{
+              background: COLUMN_COLOR_MAP[task.column],
+              color: COLUMN_TEXT_COLOR_MAP[task.column],
+            }}
+          >
+            {task.status}
+          </span>
+        )}
+      </div>
       <div className="card-title">
         {task.title || (task.description ? task.description.slice(0, 60) + (task.description.length > 60 ? "…" : "") : task.id)}
       </div>
