@@ -1,4 +1,4 @@
-import type { Task, TaskDetail, TaskCreateInput, Column, MergeResult, Settings } from "@hai/core";
+import type { Task, TaskDetail, TaskAttachment, TaskCreateInput, Column, MergeResult, Settings } from "@hai/core";
 
 async function api<T = unknown>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -53,4 +53,20 @@ export function updateSettings(settings: Partial<Settings>): Promise<Settings> {
     method: "PUT",
     body: JSON.stringify(settings),
   });
+}
+
+export async function uploadAttachment(id: string, file: File): Promise<TaskAttachment> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`/api/tasks/${id}/attachments`, {
+    method: "POST",
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error((data as { error?: string }).error || "Upload failed");
+  return data as TaskAttachment;
+}
+
+export async function deleteAttachment(id: string, filename: string): Promise<Task> {
+  return api<Task>(`/tasks/${id}/attachments/${filename}`, { method: "DELETE" });
 }

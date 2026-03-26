@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import http from "node:http";
 import { createApiRoutes } from "./routes.js";
-import type { TaskStore } from "@hai/core";
+import type { TaskStore, TaskAttachment } from "@hai/core";
 import type { TaskDetail } from "@hai/core";
 
 function createMockStore(overrides: Partial<TaskStore> = {}): TaskStore {
@@ -54,6 +54,49 @@ async function GET(app: express.Express, path: string): Promise<{ status: number
   });
 }
 
+/** Helper: send a request with method/body and return { status, body } */
+async function REQUEST(
+  app: express.Express,
+  method: string,
+  path: string,
+  body?: Buffer | string,
+  headers?: Record<string, string>,
+): Promise<{ status: number; body: any }> {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(0, () => {
+      const addr = server.address() as { port: number };
+      const url = new URL(`http://127.0.0.1:${addr.port}${path}`);
+      const req = http.request(
+        { hostname: url.hostname, port: url.port, path: url.pathname, method, headers },
+        (res) => {
+          let data = "";
+          res.on("data", (chunk) => (data += chunk));
+          res.on("end", () => {
+            server.close();
+            try {
+              resolve({ status: res.statusCode!, body: JSON.parse(data) });
+            } catch {
+              resolve({ status: res.statusCode!, body: data });
+            }
+          });
+        },
+      );
+      req.on("error", (err) => { server.close(); reject(err); });
+      if (body) req.write(body);
+      req.end();
+    });
+  });
+}
+
+/** Build a minimal multipart/form-data body */
+function buildMultipart(fieldName: string, filename: string, contentType: string, content: Buffer): { body: Buffer; boundary: string } {
+  const boundary = "----TestBoundary" + Date.now();
+  const header = `--${boundary}\r\nContent-Disposition: form-data; name="${fieldName}"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`;
+  const footer = `\r\n--${boundary}--\r\n`;
+  const body = Buffer.concat([Buffer.from(header), content, Buffer.from(footer)]);
+  return { body, boundary };
+}
+
 describe("GET /tasks/:id", () => {
   let store: TaskStore;
 
@@ -97,5 +140,99 @@ describe("GET /tasks/:id", () => {
 
     expect(res.status).toBe(500);
     expect(res.body.error).toContain("Unexpected end of JSON input");
+  });
+});
+
+describe("Attachment routes", () => {
+  const FAKE_ATTACHMENT: TaskAttachment = {
+    filename: "1234-screenshot.png",
+    originalName: "screenshot.png",
+    mimeType: "image/png",
+    size: 100,
+    createdAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  let store: TaskStore;
+
+  beforeEach(() => {
+    store = createMockStore({
+      addAttachment: vi.fn().mockResolvedValue(FAKE_ATTACHMENT),
+      getAttachment: vi.fn(),
+      deleteAttachment: vi.fn().mockResolvedValue({ ...FAKE_TASK_DETAIL, attachments: [] }),
+    });
+  });
+
+  function buildApp() {
+    const app = express();
+    app.use(express.json());
+    app.use("/api", createApiRoutes(store));
+    return app;
+  }
+
+  it("POST /tasks/:id/attachments — uploads a valid image", async () => {
+    const content = Buffer.from("fake png content");
+    const { body, boundary } = buildMultipart("file", "screenshot.png", "image/png", content);
+
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/attachments", body, {
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.filename).toBe("1234-screenshot.png");
+    expect((store.addAttachment as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+      "HAI-001",
+      "screenshot.png",
+      expect.any(Buffer),
+      "image/png",
+    );
+  });
+
+  it("POST /tasks/:id/attachments — returns 400 for invalid mime type", async () => {
+    (store.addAttachment as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("Invalid mime type 'text/plain'. Allowed: image/png, image/jpeg, image/gif, image/webp"),
+    );
+
+    const content = Buffer.from("not an image");
+    const { body, boundary } = buildMultipart("file", "file.txt", "text/plain", content);
+
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/attachments", body, {
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("Invalid mime type");
+  });
+
+  it("POST /tasks/:id/attachments — returns 400 for oversized file", async () => {
+    (store.addAttachment as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("File too large"),
+    );
+
+    const content = Buffer.from("small but store rejects");
+    const { body, boundary } = buildMultipart("file", "big.png", "image/png", content);
+
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/attachments", body, {
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("File too large");
+  });
+
+  it("DELETE /tasks/:id/attachments/:filename — deletes attachment", async () => {
+    const res = await REQUEST(buildApp(), "DELETE", "/api/tasks/HAI-001/attachments/1234-screenshot.png");
+
+    expect(res.status).toBe(200);
+    expect((store.deleteAttachment as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith("HAI-001", "1234-screenshot.png");
+  });
+
+  it("DELETE /tasks/:id/attachments/:filename — returns 404 for missing", async () => {
+    const err: NodeJS.ErrnoException = new Error("Attachment not found");
+    err.code = "ENOENT";
+    (store.deleteAttachment as ReturnType<typeof vi.fn>).mockRejectedValue(err);
+
+    const res = await REQUEST(buildApp(), "DELETE", "/api/tasks/HAI-001/attachments/nope.png");
+
+    expect(res.status).toBe(404);
   });
 });

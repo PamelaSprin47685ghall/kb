@@ -1,7 +1,14 @@
 import { Router } from "express";
+import multer from "multer";
+import { createReadStream } from "node:fs";
 import type { TaskStore, Column, MergeResult } from "@hai/core";
 import { COLUMNS } from "@hai/core";
 import type { ServerOptions } from "./server.js";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+});
 
 export function createApiRoutes(store: TaskStore, options?: ServerOptions): Router {
   const router = Router();
@@ -98,6 +105,55 @@ export function createApiRoutes(store: TaskStore, options?: ServerOptions): Rout
         : err.message.includes("conflict") ? 409
         : 500;
       res.status(status).json({ error: err.message });
+    }
+  });
+
+  // Upload attachment
+  router.post("/tasks/:id/attachments", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ error: "No file provided" });
+        return;
+      }
+      const attachment = await store.addAttachment(
+        req.params.id as string,
+        req.file.originalname,
+        req.file.buffer,
+        req.file.mimetype,
+      );
+      res.status(201).json(attachment);
+    } catch (err: any) {
+      const status = err.message.includes("Invalid mime type") || err.message.includes("File too large") ? 400 : 500;
+      res.status(status).json({ error: err.message });
+    }
+  });
+
+  // Download attachment
+  router.get("/tasks/:id/attachments/:filename", async (req, res) => {
+    try {
+      const { path, mimeType } = await store.getAttachment(req.params.id, req.params.filename);
+      res.setHeader("Content-Type", mimeType);
+      createReadStream(path).pipe(res);
+    } catch (err: any) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "Attachment not found" });
+      } else {
+        res.status(500).json({ error: err.message });
+      }
+    }
+  });
+
+  // Delete attachment
+  router.delete("/tasks/:id/attachments/:filename", async (req, res) => {
+    try {
+      const task = await store.deleteAttachment(req.params.id, req.params.filename);
+      res.json(task);
+    } catch (err: any) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "Attachment not found" });
+      } else {
+        res.status(500).json({ error: err.message });
+      }
     }
   });
 

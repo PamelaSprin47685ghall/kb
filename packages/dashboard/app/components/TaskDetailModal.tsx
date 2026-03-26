@@ -1,8 +1,9 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Task, TaskDetail, Column, MergeResult } from "@hai/core";
+import type { Task, TaskDetail, TaskAttachment, Column, MergeResult } from "@hai/core";
 import { COLUMN_LABELS, VALID_TRANSITIONS } from "@hai/core";
+import { uploadAttachment, deleteAttachment } from "../api";
 import type { ToastType } from "../hooks/useToast";
 
 function formatTimestamp(iso: string): string {
@@ -18,6 +19,12 @@ function formatTimestamp(iso: string): string {
   if (diffHr < 24) return `${diffHr}h ago`;
   if (diffDay < 7) return `${diffDay}d ago`;
   return date.toLocaleDateString();
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 interface TaskDetailModalProps {
@@ -37,6 +44,9 @@ export function TaskDetailModal({
   onMergeTask,
   addToast,
 }: TaskDetailModalProps) {
+  const [attachments, setAttachments] = useState<TaskAttachment[]>(task.attachments || []);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -92,6 +102,32 @@ export function TaskDetailModal({
       });
   }, [task.id, onMergeTask, onClose, addToast]);
 
+  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const attachment = await uploadAttachment(task.id, file);
+      setAttachments((prev) => [...prev, attachment]);
+      addToast("Screenshot attached", "success");
+    } catch (err: any) {
+      addToast(err.message, "error");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, [task.id, addToast]);
+
+  const handleDeleteAttachment = useCallback(async (filename: string) => {
+    try {
+      await deleteAttachment(task.id, filename);
+      setAttachments((prev) => prev.filter((a) => a.filename !== filename));
+      addToast("Attachment deleted", "info");
+    } catch (err: any) {
+      addToast(err.message, "error");
+    }
+  }, [task.id, addToast]);
+
   const transitions = VALID_TRANSITIONS[task.column] || [];
 
   return (
@@ -124,6 +160,78 @@ export function TaskDetailModal({
             ) : (
               <div className="detail-prompt">(no prompt)</div>
             )}
+          </div>
+          <div className="detail-section">
+            <h4>Attachments</h4>
+            {attachments.length > 0 ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "8px" }}>
+                {attachments.map((a) => (
+                  <div
+                    key={a.filename}
+                    style={{
+                      position: "relative",
+                      border: "1px solid var(--border, #333)",
+                      borderRadius: "6px",
+                      padding: "4px",
+                      background: "var(--bg-secondary, #1a1a2e)",
+                    }}
+                  >
+                    <a
+                      href={`/api/tasks/${task.id}/attachments/${a.filename}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <img
+                        src={`/api/tasks/${task.id}/attachments/${a.filename}`}
+                        alt={a.originalName}
+                        style={{ maxWidth: "150px", maxHeight: "100px", display: "block", borderRadius: "4px" }}
+                      />
+                    </a>
+                    <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.7 }}>
+                      {a.originalName} ({formatBytes(a.size)})
+                    </div>
+                    <button
+                      onClick={() => handleDeleteAttachment(a.filename)}
+                      style={{
+                        position: "absolute",
+                        top: "2px",
+                        right: "2px",
+                        background: "rgba(0,0,0,0.6)",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "50%",
+                        width: "20px",
+                        height: "20px",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                        lineHeight: "20px",
+                        textAlign: "center",
+                        padding: 0,
+                      }}
+                      title="Delete attachment"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ opacity: 0.5, marginBottom: "8px" }}>(no attachments)</div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleUpload}
+              style={{ display: "none" }}
+            />
+            <button
+              className="btn btn-sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? "Uploading…" : "Attach Screenshot"}
+            </button>
           </div>
           {task.dependencies && task.dependencies.length > 0 && (
             <div className="detail-deps">

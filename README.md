@@ -43,6 +43,9 @@ pnpm dev task list
 
 # Move a task
 pnpm dev task move HAI-001 todo
+
+# Attach a screenshot to a task
+pnpm dev task attach HAI-001 ./screenshot.png
 ```
 
 Then open [http://localhost:4040](http://localhost:4040).
@@ -63,7 +66,7 @@ hai reuses your existing pi authentication — no separate setup needed.
 | `@hai/core` | Domain model — tasks, board columns, file-based store |
 | `@hai/dashboard` | Web UI — Express server + kanban board with SSE |
 | `@hai/engine` | AI engine — triage (pi), execution (pi + worktrees), scheduling |
-| `hai` (cli) | CLI — `hai dashboard`, `hai task create/list/move` |
+| `hai` (cli) | CLI — `hai dashboard`, `hai task create/list/move/attach` |
 
 ## Architecture
 
@@ -77,7 +80,8 @@ Tasks live on disk in `.hai/tasks/` in the project root:
 └── tasks/
     └── HAI-001/
         ├── task.json        # Metadata (column, deps, timestamps)
-        └── PROMPT.md        # Task specification
+        ├── PROMPT.md        # Task specification
+        └── attachments/     # Screenshot images (optional)
 ```
 
 ### Board UI
