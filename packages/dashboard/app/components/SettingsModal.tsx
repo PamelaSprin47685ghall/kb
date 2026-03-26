@@ -27,7 +27,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
-  const [form, setForm] = useState<Settings & { worktreeInitCommand?: string }>({ maxConcurrent: 2, maxWorktrees: 4, pollIntervalMs: 15000, groupOverlappingFiles: false, autoMerge: false, recycleWorktrees: false, worktreeInitCommand: "" });
+  const [form, setForm] = useState<Settings & { worktreeInitCommand?: string }>({ maxConcurrent: 2, maxWorktrees: 4, pollIntervalMs: 15000, groupOverlappingFiles: false, autoMerge: false, recycleWorktrees: false, includeTaskIdInCommit: true, worktreeInitCommand: "" });
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<SectionId>(SETTINGS_SECTIONS[0].id);
   const [prefixError, setPrefixError] = useState<string | null>(null);
@@ -245,6 +245,20 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
                 Auto-merge completed tasks
               </label>
               <small>When enabled, tasks that pass review are automatically merged into the main branch</small>
+            </div>
+            <div className="form-group">
+              <label htmlFor="includeTaskIdInCommit" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <input
+                  id="includeTaskIdInCommit"
+                  type="checkbox"
+                  checked={form.includeTaskIdInCommit !== false}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, includeTaskIdInCommit: e.target.checked }))
+                  }
+                />
+                Include task ID in commit scope
+              </label>
+              <small>When disabled, merge commit messages omit the task ID from the scope (e.g. <code>feat: ...</code> instead of <code>feat(HAI-001): ...</code>)</small>
             </div>
           </>
         );

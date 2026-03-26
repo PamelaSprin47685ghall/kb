@@ -93,6 +93,10 @@ export interface Settings {
    *  Defaults to `"HAI"`. Only affects new tasks — existing tasks retain
    *  their original IDs. */
   taskPrefix?: string;
+  /** When true, merge commit messages include the task ID as the conventional
+   *  commit scope (e.g. `feat(HAI-001): ...`). When false, the scope is
+   *  omitted (e.g. `feat: ...`). Default: true. */
+  includeTaskIdInCommit?: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -104,6 +108,7 @@ export const DEFAULT_SETTINGS: Settings = {
   worktreeInitCommand: undefined,
   recycleWorktrees: false,
   taskPrefix: undefined,
+  includeTaskIdInCommit: true,
 };
 
 export interface BoardConfig {

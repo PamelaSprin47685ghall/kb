@@ -185,6 +185,113 @@ describe("aiMergeTask — conditional worktree cleanup", () => {
   });
 });
 
+describe("aiMergeTask — includeTaskIdInCommit setting", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedExistsSync.mockReturnValue(true);
+    setupHappyPathExecSync();
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+  });
+
+  it("includes task ID in system prompt by default (includeTaskIdInCommit: true)", async () => {
+    const store = createMockStore(
+      { id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050" },
+      [{ id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050", column: "in-review" } as Task],
+    );
+
+    await aiMergeTask(store, "/tmp/root", "HAI-050");
+
+    const agentCall = mockedCreateHaiAgent.mock.calls[0][0] as any;
+    expect(agentCall.systemPrompt).toContain("<type>(<scope>): <summary>");
+    expect(agentCall.systemPrompt).toContain("the task ID");
+  });
+
+  it("omits task ID scope in system prompt when includeTaskIdInCommit is false", async () => {
+    const store = createMockStore(
+      { id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050" },
+      [{ id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050", column: "in-review" } as Task],
+    );
+    (store.getSettings as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      includeTaskIdInCommit: false,
+    });
+
+    await aiMergeTask(store, "/tmp/root", "HAI-050");
+
+    const agentCall = mockedCreateHaiAgent.mock.calls[0][0] as any;
+    expect(agentCall.systemPrompt).toContain("<type>: <summary>");
+    expect(agentCall.systemPrompt).not.toContain("<type>(<scope>): <summary>");
+    expect(agentCall.systemPrompt).toContain("Do NOT include a scope");
+  });
+
+  it("fallback commit includes task ID when includeTaskIdInCommit is true", async () => {
+    // Make staged check return "1" so fallback is triggered
+    mockedExecSync.mockImplementation((cmd: any) => {
+      const cmdStr = String(cmd);
+      if (cmdStr.includes("rev-parse --verify")) return Buffer.from("abc123");
+      if (cmdStr.includes("git log")) return "- feat: something" as any;
+      if (cmdStr.includes("git diff") && cmdStr.includes("--stat")) return "1 file changed" as any;
+      if (cmdStr.includes("merge --squash")) return Buffer.from("");
+      if (cmdStr.includes("diff --cached")) return "1" as any;
+      if (cmdStr.includes("git commit")) return Buffer.from("");
+      if (cmdStr.includes("branch -d") || cmdStr.includes("branch -D")) return Buffer.from("");
+      if (cmdStr.includes("worktree remove")) return Buffer.from("");
+      return Buffer.from("");
+    });
+
+    const store = createMockStore(
+      { id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050" },
+      [{ id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050", column: "in-review" } as Task],
+    );
+
+    await aiMergeTask(store, "/tmp/root", "HAI-050");
+
+    const commitCall = mockedExecSync.mock.calls.find(
+      (call) => String(call[0]).includes("git commit"),
+    );
+    expect(commitCall).toBeDefined();
+    expect(String(commitCall![0])).toContain("feat(HAI-050):");
+  });
+
+  it("fallback commit omits task ID when includeTaskIdInCommit is false", async () => {
+    mockedExecSync.mockImplementation((cmd: any) => {
+      const cmdStr = String(cmd);
+      if (cmdStr.includes("rev-parse --verify")) return Buffer.from("abc123");
+      if (cmdStr.includes("git log")) return "- feat: something" as any;
+      if (cmdStr.includes("git diff") && cmdStr.includes("--stat")) return "1 file changed" as any;
+      if (cmdStr.includes("merge --squash")) return Buffer.from("");
+      if (cmdStr.includes("diff --cached")) return "1" as any;
+      if (cmdStr.includes("git commit")) return Buffer.from("");
+      if (cmdStr.includes("branch -d") || cmdStr.includes("branch -D")) return Buffer.from("");
+      if (cmdStr.includes("worktree remove")) return Buffer.from("");
+      return Buffer.from("");
+    });
+
+    const store = createMockStore(
+      { id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050" },
+      [{ id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050", column: "in-review" } as Task],
+    );
+    (store.getSettings as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      includeTaskIdInCommit: false,
+    });
+
+    await aiMergeTask(store, "/tmp/root", "HAI-050");
+
+    const commitCall = mockedExecSync.mock.calls.find(
+      (call) => String(call[0]).includes("git commit"),
+    );
+    expect(commitCall).toBeDefined();
+    expect(String(commitCall![0])).toContain("feat: merge");
+    expect(String(commitCall![0])).not.toContain("feat(HAI-050)");
+  });
+});
+
 describe("aiMergeTask — agent log persistence", () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -5,7 +5,52 @@ import { createHaiAgent } from "./pi.js";
 import type { WorktreePool } from "./worktree-pool.js";
 import { AgentLogger } from "./agent-logger.js";
 
-const MERGE_SYSTEM_PROMPT = `You are a merge agent for "hai", an AI-orchestrated task board.
+/**
+ * Build the merge system prompt. When `includeTaskId` is true (default),
+ * the commit format uses `<type>(<scope>): <summary>` where scope is the
+ * task ID. When false, it uses `<type>: <summary>` with no scope.
+ */
+function buildMergeSystemPrompt(includeTaskId: boolean): string {
+  const commitFormat = includeTaskId
+    ? `\`\`\`
+git commit -m "<type>(<scope>): <summary>" -m "<body>"
+\`\`\`
+
+Message format:
+- **Type:** feat, fix, refactor, docs, test, chore
+- **Scope:** the task ID (e.g., HAI-001)
+- **Summary:** one line describing what the squash brings in (imperative mood)
+- **Body:** 2-5 bullet points summarizing the key changes, each starting with "- "
+
+Example:
+\`\`\`
+git commit -m "feat(HAI-003): add user profile page" -m "- Add /profile route with avatar upload
+- Create ProfileCard and EditProfileForm components
+- Add profile image resizing via sharp
+- Update nav bar with profile link
+- Add profile e2e tests"
+\`\`\``
+    : `\`\`\`
+git commit -m "<type>: <summary>" -m "<body>"
+\`\`\`
+
+Message format:
+- **Type:** feat, fix, refactor, docs, test, chore
+- **Summary:** one line describing what the squash brings in (imperative mood)
+- **Body:** 2-5 bullet points summarizing the key changes, each starting with "- "
+
+Do NOT include a scope in the commit message type.
+
+Example:
+\`\`\`
+git commit -m "feat: add user profile page" -m "- Add /profile route with avatar upload
+- Create ProfileCard and EditProfileForm components
+- Add profile image resizing via sharp
+- Update nav bar with profile link
+- Add profile e2e tests"
+\`\`\``;
+
+  return `You are a merge agent for "hai", an AI-orchestrated task board.
 
 Your job is to finalize a squash merge: resolve any conflicts and write a good commit message.
 All changes from the branch are squashed into a single commit.
@@ -23,27 +68,11 @@ If there are merge conflicts:
 After all conflicts are resolved (or if there were none), write and execute the squash commit.
 
 Look at the branch commits and diff to understand what was done, then run:
-\`\`\`
-git commit -m "<type>(<scope>): <summary>" -m "<body>"
-\`\`\`
-
-Message format:
-- **Type:** feat, fix, refactor, docs, test, chore
-- **Scope:** the task ID (e.g., HAI-001)
-- **Summary:** one line describing what the squash brings in (imperative mood)
-- **Body:** 2-5 bullet points summarizing the key changes, each starting with "- "
-
-Example:
-\`\`\`
-git commit -m "feat(HAI-003): add user profile page" -m "- Add /profile route with avatar upload
-- Create ProfileCard and EditProfileForm components
-- Add profile image resizing via sharp
-- Update nav bar with profile link
-- Add profile e2e tests"
-\`\`\`
+${commitFormat}
 
 Do NOT use generic messages like "merge branch" or "resolve conflicts".
 Base the message on the ACTUAL work done in the branch commits.`;
+}
 
 /**
  * Check if any non-done task (other than `excludeTaskId`) references the given
@@ -114,7 +143,11 @@ export async function aiMergeTask(
     console.warn(`[merger] ${taskId}: no worktree path set — skipping worktree cleanup`);
   }
 
-  // 2. Check branch exists
+  // 2. Read settings early (reused later for recycleWorktrees)
+  const settings = await store.getSettings();
+  const includeTaskId = settings.includeTaskIdInCommit !== false;
+
+  // 3. Check branch exists
   try {
     execSync(`git rev-parse --verify "${branch}"`, {
       cwd: rootDir,
@@ -200,7 +233,7 @@ export async function aiMergeTask(
 
   const { session } = await createHaiAgent({
     cwd: rootDir,
-    systemPrompt: MERGE_SYSTEM_PROMPT,
+    systemPrompt: buildMergeSystemPrompt(includeTaskId),
     tools: "coding",
     onText: agentLogger.onText,
     onToolStart: agentLogger.onToolStart,
@@ -219,8 +252,9 @@ export async function aiMergeTask(
     if (staged !== "0") {
       console.log("[merger] Agent didn't commit — committing with fallback message");
       const escapedLog = commitLog.replace(/"/g, '\\"');
+      const fallbackPrefix = includeTaskId ? `feat(${taskId})` : "feat";
       execSync(
-        `git commit -m "feat(${taskId}): merge ${branch}" -m "${escapedLog}"`,
+        `git commit -m "${fallbackPrefix}: merge ${branch}" -m "${escapedLog}"`,
         { cwd: rootDir, stdio: "pipe" },
       );
     }
@@ -255,7 +289,7 @@ export async function aiMergeTask(
     if (otherUser) {
       console.log(`[merger] Worktree retained — still needed by ${otherUser}`);
       result.worktreeRemoved = false;
-    } else if (options.pool && (await store.getSettings()).recycleWorktrees) {
+    } else if (options.pool && settings.recycleWorktrees) {
       options.pool.release(worktreePath);
       result.worktreeRemoved = false;
     } else {

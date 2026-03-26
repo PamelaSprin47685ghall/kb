@@ -95,6 +95,7 @@ describe("SettingsModal", () => {
     // Merge
     fireEvent.click(screen.getByText("Merge"));
     expect(screen.getByText("Auto-merge completed tasks")).toBeTruthy();
+    expect(screen.getByText("Include task ID in commit scope")).toBeTruthy();
   });
 
   it("shows Recycle worktrees checkbox in Worktrees section", async () => {
@@ -171,6 +172,32 @@ describe("SettingsModal", () => {
     fireEvent.click(screen.getByText("Save"));
     // Should not have called updateSettings due to validation error
     expect(updateSettings).not.toHaveBeenCalled();
+  });
+
+  it("shows Include task ID in commit scope checkbox in Merge section", async () => {
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Merge"));
+    const checkbox = screen.getByLabelText("Include task ID in commit scope");
+    expect(checkbox).toBeTruthy();
+    expect(checkbox.getAttribute("type")).toBe("checkbox");
+  });
+
+  it("toggling includeTaskIdInCommit checkbox sends false in save payload", async () => {
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Merge"));
+    const checkbox = screen.getByLabelText("Include task ID in commit scope");
+    // Default is checked (true), click to uncheck
+    fireEvent.click(checkbox);
+
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => expect(updateSettings).toHaveBeenCalledTimes(1));
+
+    const payload = (updateSettings as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(payload.includeTaskIdInCommit).toBe(false);
   });
 
   it("groupOverlappingFiles input has type checkbox", async () => {
