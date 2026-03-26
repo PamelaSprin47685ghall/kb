@@ -21,6 +21,7 @@ export interface Task {
   column: Column;
   dependencies: string[];
   worktree?: string;
+  status?: string;
   steps: TaskStep[];
   currentStep: number;
   log: TaskLogEntry[];
