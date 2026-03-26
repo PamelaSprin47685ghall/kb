@@ -1,6 +1,39 @@
 import { resolveDependencyOrder, type TaskStore, type Task } from "@hai/core";
 import type { AgentSemaphore } from "./concurrency.js";
 
+/**
+ * Check whether two sets of file scope paths overlap.
+ * Paths overlap if they are identical, or if one is a directory prefix of the other.
+ * Glob patterns (ending with `/*`) are treated as directory prefixes.
+ *
+ * Exported for direct unit testing; used internally by {@link Scheduler}.
+ */
+export function pathsOverlap(a: string[], b: string[]): boolean {
+  for (const pa of a) {
+    const prefixA = pa.endsWith("/*") ? pa.slice(0, -1) : null;
+    for (const pb of b) {
+      const prefixB = pb.endsWith("/*") ? pb.slice(0, -1) : null;
+
+      // Exact match (ignoring glob suffix)
+      const cleanA = prefixA ? pa.slice(0, -2) : pa;
+      const cleanB = prefixB ? pb.slice(0, -2) : pb;
+      if (cleanA === cleanB) return true;
+
+      // Check prefix overlap
+      if (prefixA && pb.startsWith(prefixA)) return true;
+      if (prefixB && pa.startsWith(prefixB)) return true;
+      if (prefixA && prefixB) {
+        if (prefixA.startsWith(prefixB) || prefixB.startsWith(prefixA))
+          return true;
+      }
+
+      // Exact file path match
+      if (pa === pb) return true;
+    }
+  }
+  return false;
+}
+
 export interface SchedulerOptions {
   /** Max concurrent in-progress tasks. Default: 2 */
   maxConcurrent?: number;
@@ -31,6 +64,7 @@ export interface SchedulerOptions {
  */
 export class Scheduler {
   private running = false;
+  private scheduling = false;
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -60,38 +94,26 @@ export class Scheduler {
   }
 
   /**
-   * Check whether two sets of file scope paths overlap.
-   * Paths overlap if they are identical, or if one is a directory prefix of the other.
-   * Glob patterns (ending with /*) are treated as directory prefixes.
+   * Delegates to the module-level {@link pathsOverlap} for testability.
    */
   private pathsOverlap(a: string[], b: string[]): boolean {
-    for (const pa of a) {
-      const prefixA = pa.endsWith("/*") ? pa.slice(0, -1) : null;
-      for (const pb of b) {
-        const prefixB = pb.endsWith("/*") ? pb.slice(0, -1) : null;
-
-        // Exact match (ignoring glob suffix)
-        const cleanA = prefixA ? pa.slice(0, -2) : pa;
-        const cleanB = prefixB ? pb.slice(0, -2) : pb;
-        if (cleanA === cleanB) return true;
-
-        // Check prefix overlap
-        if (prefixA && pb.startsWith(prefixA)) return true;
-        if (prefixB && pa.startsWith(prefixB)) return true;
-        if (prefixA && prefixB) {
-          if (prefixA.startsWith(prefixB) || prefixB.startsWith(prefixA)) return true;
-        }
-
-        // Exact file path match
-        if (pa === pb) return true;
-      }
-    }
-    return false;
+    return pathsOverlap(a, b);
   }
 
-  /** Run one scheduling pass. */
+  /**
+   * Run one scheduling pass.
+   *
+   * Uses a re-entrance guard (`this.scheduling`) to prevent overlapping
+   * passes. Because `schedule()` is async but triggered by `setInterval`,
+   * a slow pass could still be running when the next interval fires.
+   * Without the guard, two passes would snapshot the same task list and
+   * both could start tasks whose file scopes overlap — defeating the
+   * overlap detection that relies on `inProgressScopes` being accurate.
+   */
   async schedule(): Promise<void> {
     if (!this.running) return;
+    if (this.scheduling) return;
+    this.scheduling = true;
 
     try {
       const tasks = await this.store.listTasks();
@@ -133,7 +155,16 @@ export class Scheduler {
       const todo = tasks.filter((t) => t.column === "todo");
       if (todo.length === 0) return;
 
-      // Pre-compute file scopes for in-progress tasks when overlap detection is enabled
+      /**
+       * Pre-compute file scopes for **all** currently in-progress tasks so
+       * that todo tasks are never started when their files overlap with work
+       * already underway.  The re-entrance guard on this method ensures that
+       * this snapshot stays consistent throughout the pass — without it, a
+       * concurrent pass could read stale state and start conflicting tasks.
+       *
+       * Newly started tasks are appended to this map further below so that
+       * subsequent todo tasks in the same pass also see them.
+       */
       const inProgressScopes = new Map<string, string[]>();
       if (settings.groupOverlappingFiles) {
         for (const t of inProgress) {
@@ -203,6 +234,8 @@ export class Scheduler {
       }
     } catch (err) {
       console.error("[scheduler] Scheduling error:", err);
+    } finally {
+      this.scheduling = false;
     }
   }
 }
