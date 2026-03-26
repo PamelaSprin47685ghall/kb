@@ -9,6 +9,7 @@
     "dev:ui": "pnpm --filter @hai/dashboard dev",
     "build": "pnpm -r build",
     "build:exe": "pnpm build && pnpm --filter hai build:exe",
+    "build:exe:all": "pnpm build && pnpm --filter hai build:exe:all",
     "typecheck": "pnpm -r typecheck"
   },
   "pnpm": {

@@ -163,6 +163,32 @@ Run the binary directly — no Node.js, pnpm, or workspace setup needed:
 
 To distribute, copy both the `hai` binary and the `client/` directory together.
 
+### Cross-compilation
+
+Build binaries for all supported platforms from a single machine:
+
+```bash
+pnpm build:exe:all
+```
+
+This produces binaries for all supported targets in `packages/cli/dist/`:
+
+| Target | Output |
+|--------|--------|
+| `bun-linux-x64` | `hai-linux-x64` |
+| `bun-linux-arm64` | `hai-linux-arm64` |
+| `bun-darwin-x64` | `hai-darwin-x64` |
+| `bun-darwin-arm64` | `hai-darwin-arm64` |
+| `bun-windows-x64` | `hai-windows-x64.exe` |
+
+To build for a specific platform:
+
+```bash
+pnpm --filter hai build:exe -- --target bun-linux-x64
+```
+
+The `client/` directory is shared across all binaries (platform-independent assets).
+
 You can override the dashboard asset path via the `HAI_CLIENT_DIR` environment variable:
 
 ```bash

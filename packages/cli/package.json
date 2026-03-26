@@ -9,6 +9,7 @@
     "dev": "tsx src/bin.ts",
     "build": "tsc",
     "build:exe": "bun run build.ts",
+    "build:exe:all": "bun run build.ts --all",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
