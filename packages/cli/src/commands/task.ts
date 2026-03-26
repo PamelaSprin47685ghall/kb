@@ -106,7 +106,7 @@ export async function runTaskShow(id: string) {
   const task = await store.getTask(id);
 
   console.log();
-  console.log(`  ${task.id}: ${task.title || task.description.slice(0, 60)}`);
+  console.log(`  ${task.id}: ${task.title || task.description}`);
   console.log(`  Column: ${COLUMN_LABELS[task.column]}${task.size ? ` · Size: ${task.size}` : ""}${task.reviewLevel !== undefined ? ` · Review: ${task.reviewLevel}` : ""}`);
   if (task.dependencies.length) {
     console.log(`  Dependencies: ${task.dependencies.join(", ")}`);
