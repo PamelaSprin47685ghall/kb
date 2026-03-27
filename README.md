@@ -4,26 +4,19 @@ AI-orchestrated task board. Like Trello, but your tasks get specified, executed,
 
 ## Workflow
 
-```mermaid
-graph LR
-    H((You)) -->|rough idea| T[Triage]
-    T -->|AI writes spec| TD[Todo]
-    TD -->|deps met,\nagent free| IP[In Progress]
-    IP -->|all steps done,\nreviews pass| IR[In Review]
-    IR -->|squash merge| D[Done]
+```
+  Triage       Todo        In Progress     In Review      Done
+ ----------  ----------  ---------------  ------------  --------
+  raw idea    AI spec'd    AI working       ready to     merged
+              & ready      in worktree      merge
 
-    subgraph IP[In Progress]
-        direction TB
-        E[Execute step] --> R{Review}
-        R -->|approve| E
-        R -->|revise| E
-    end
-
-    style T fill:#2d2006,stroke:#d29922,color:#d29922
-    style TD fill:#0d2044,stroke:#58a6ff,color:#58a6ff
-    style IP fill:#1a0d2e,stroke:#bc8cff,color:#bc8cff
-    style IR fill:#0d2d16,stroke:#3fb950,color:#3fb950
-    style D fill:#1a1a1a,stroke:#8b949e,color:#8b949e
+     |            |             |               |            |
+     |  AI specs  |  deps met,  |  all steps +  | squash     |
+     +----------->+  agent free +  reviews pass +  merge     |
+                  +------------>+-------------->+----------->+
+                        ^                            |
+                        |        needs work          |
+                        +----------------------------+
 ```
 
 Tasks with dependencies are processed sequentially. Independent tasks run in parallel.
