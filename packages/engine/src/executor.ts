@@ -11,6 +11,7 @@ import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import type { AgentSemaphore } from "./concurrency.js";
 import type { WorktreePool } from "./worktree-pool.js";
 import { AgentLogger } from "./agent-logger.js";
+import { executorLog, reviewerLog } from "./logger.js";
 
 // Re-export for backward compatibility (tests import from executor.ts)
 export { summarizeToolArgs } from "./agent-logger.js";
@@ -150,7 +151,7 @@ export class TaskExecutor {
     store.on("task:moved", ({ task, to }) => {
       if (to === "in-progress") {
         this.execute(task).catch((err) =>
-          console.error(`[executor] Failed to start ${task.id}:`, err),
+          executorLog.error(`Failed to start ${task.id}:`, err),
         );
       }
     });
@@ -158,7 +159,7 @@ export class TaskExecutor {
     // When a task is paused while executing, terminate the agent session.
     store.on("task:updated", (task) => {
       if (task.paused && this.activeSessions.has(task.id)) {
-        console.log(`[executor] Pausing ${task.id} — terminating agent session`);
+        executorLog.log(`Pausing ${task.id} — terminating agent session`);
         this.pausedAborted.add(task.id);
         const session = this.activeSessions.get(task.id);
         session?.dispose();
@@ -178,12 +179,12 @@ export class TaskExecutor {
 
     if (inProgress.length === 0) return;
 
-    console.log(`[executor] Found ${inProgress.length} orphaned in-progress task(s)`);
+    executorLog.log(`Found ${inProgress.length} orphaned in-progress task(s)`);
     for (const task of inProgress) {
-      console.log(`[executor] Resuming ${task.id}: ${task.title || task.description.slice(0, 60)}`);
+      executorLog.log(`Resuming ${task.id}: ${task.title || task.description.slice(0, 60)}`);
       await this.store.logEntry(task.id, "Resumed after engine restart");
       this.execute(task).catch((err) =>
-        console.error(`[executor] Failed to resume ${task.id}:`, err),
+        executorLog.error(`Failed to resume ${task.id}:`, err),
       );
     }
   }
@@ -227,7 +228,7 @@ export class TaskExecutor {
       cwd: worktreePath,
       stdio: "pipe",
     });
-    console.log(`[executor] Reused worktree at ${worktreePath}, created branch ${branch}`);
+    executorLog.log(`Reused worktree at ${worktreePath}, created branch ${branch}`);
   }
 
   /**
@@ -244,7 +245,7 @@ export class TaskExecutor {
     if (this.executing.has(task.id)) return;
     this.executing.add(task.id);
 
-    console.log(`[executor] Starting ${task.id}: ${task.title || task.description.slice(0, 60)}`);
+    executorLog.log(`Starting ${task.id}: ${task.title || task.description.slice(0, 60)}`);
 
     try {
       // Check dependencies
@@ -255,7 +256,7 @@ export class TaskExecutor {
       });
 
       if (unmetDeps.length > 0) {
-        console.log(`[executor] ${task.id} blocked by: ${unmetDeps.join(", ")} — deferring`);
+        executorLog.log(`${task.id} blocked by: ${unmetDeps.join(", ")} — deferring`);
         return;
       }
 
@@ -277,7 +278,7 @@ export class TaskExecutor {
             this.options.pool.prepareForTask(pooled, branchName);
             worktreePath = pooled;
             acquiredFromPool = true;
-            console.log(`[executor] Acquired worktree from pool: ${pooled}`);
+            executorLog.log(`Acquired worktree from pool: ${pooled}`);
             await this.store.updateTask(task.id, { worktree: worktreePath });
             await this.store.logEntry(task.id, `Acquired worktree from pool: ${worktreePath}`);
           }
@@ -368,12 +369,12 @@ export class TaskExecutor {
 
           if (taskDone) {
             await this.store.moveTask(task.id, "in-review");
-            console.log(`[executor] ✓ ${task.id} completed → in-review`);
+            executorLog.log(`✓ ${task.id} completed → in-review`);
             this.options.onComplete?.(task);
           } else {
             await this.store.logEntry(task.id, "Agent finished without calling task_done — moved to in-review for inspection");
             await this.store.moveTask(task.id, "in-review");
-            console.log(`[executor] ⚠ ${task.id} finished without task_done → in-review`);
+            executorLog.log(`⚠ ${task.id} finished without task_done → in-review`);
             this.options.onComplete?.(task);
           }
         } finally {
@@ -391,12 +392,12 @@ export class TaskExecutor {
     } catch (err: any) {
       if (this.pausedAborted.has(task.id)) {
         // Task was paused mid-execution — move to todo, don't mark as failed
-        console.log(`[executor] ${task.id} paused — moving to todo`);
+        executorLog.log(`${task.id} paused — moving to todo`);
         this.pausedAborted.delete(task.id);
         await this.store.logEntry(task.id, "Execution paused — agent terminated, moved to todo");
         await this.store.moveTask(task.id, "todo");
       } else {
-        console.error(`[executor] ✗ ${task.id} execution failed:`, err.message);
+        executorLog.error(`✗ ${task.id} execution failed:`, err.message);
         await this.store.logEntry(task.id, `Execution failed: ${err.message}`);
         await this.store.updateTask(task.id, { status: "failed" });
         this.options.onError?.(task, err);
@@ -529,7 +530,7 @@ export class TaskExecutor {
       execute: async (_toolCallId: string, params: Static<typeof reviewStepParams>) => {
         const { step, type: reviewType, step_name, baseline } = params;
 
-        console.log(`[reviewer] ${taskId}: ${reviewType} review for Step ${step} (${step_name})`);
+        reviewerLog.log(`${taskId}: ${reviewType} review for Step ${step} (${step_name})`);
         await store.logEntry(taskId, `${reviewType} review requested for Step ${step} (${step_name})`);
 
         try {
@@ -549,7 +550,7 @@ export class TaskExecutor {
             `${reviewType} review Step ${step}: ${result.verdict}`,
             result.summary,
           );
-          console.log(`[reviewer] ${taskId}: Step ${step} ${reviewType} → ${result.verdict}`);
+          reviewerLog.log(`${taskId}: Step ${step} ${reviewType} → ${result.verdict}`);
 
           let text: string;
           switch (result.verdict) {
@@ -561,7 +562,7 @@ export class TaskExecutor {
 
           return { content: [{ type: "text" as const, text }], details: {} };
         } catch (err: any) {
-          console.error(`[reviewer] ${taskId}: review failed: ${err.message}`);
+          reviewerLog.error(`${taskId}: review failed: ${err.message}`);
           await store.logEntry(taskId, `${reviewType} review failed: ${err.message}`);
           return {
             content: [{ type: "text" as const, text: `UNAVAILABLE — reviewer error: ${err.message}` }],
@@ -576,7 +577,7 @@ export class TaskExecutor {
 
   private createWorktree(branch: string, path: string): void {
     if (existsSync(path)) {
-      console.log(`[executor] Worktree already exists: ${path}`);
+      executorLog.log(`Worktree already exists: ${path}`);
       return;
     }
     try {
@@ -588,7 +589,7 @@ export class TaskExecutor {
         throw new Error(`Failed to create worktree: ${e.message}`);
       }
     }
-    console.log(`[executor] Worktree created: ${path}`);
+    executorLog.log(`Worktree created: ${path}`);
   }
 
   /**
@@ -605,15 +606,15 @@ export class TaskExecutor {
     // Check if another task still needs this worktree
     const otherUser = await findWorktreeUser(this.store, worktreePath, taskId);
     if (otherUser) {
-      console.log(`[executor] Worktree retained for ${taskId} — still needed by ${otherUser}`);
+      executorLog.log(`Worktree retained for ${taskId} — still needed by ${otherUser}`);
       return;
     }
 
     try {
       execSync(`git worktree remove "${worktreePath}" --force`, { cwd: this.rootDir, stdio: "pipe" });
-      console.log(`[executor] Cleaned up worktree for ${taskId}`);
+      executorLog.log(`Cleaned up worktree for ${taskId}`);
     } catch (err: any) {
-      console.error(`[executor] Failed to clean up worktree for ${taskId}:`, err.message);
+      executorLog.error(`Failed to clean up worktree for ${taskId}:`, err.message);
     }
   }
 

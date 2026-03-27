@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { worktreePoolLog } from "./logger.js";
 
 /**
  * A pool of idle git worktrees that can be recycled across tasks.
@@ -28,7 +29,7 @@ export class WorktreePool {
       if (existsSync(path)) {
         return path;
       }
-      console.log(`[worktree-pool] Pruned stale entry: ${path}`);
+      worktreePoolLog.log(`Pruned stale entry: ${path}`);
     }
     return null;
   }

@@ -4,6 +4,7 @@ import type { TaskStore, Task, MergeResult } from "@hai/core";
 import { createHaiAgent } from "./pi.js";
 import type { WorktreePool } from "./worktree-pool.js";
 import { AgentLogger } from "./agent-logger.js";
+import { mergerLog } from "./logger.js";
 
 /**
  * Build the merge system prompt. When `includeTaskId` is true (default),
@@ -140,7 +141,7 @@ export async function aiMergeTask(
   };
 
   if (!worktreePath) {
-    console.warn(`[merger] ${taskId}: no worktree path set — skipping worktree cleanup`);
+    mergerLog.warn(`${taskId}: no worktree path set — skipping worktree cleanup`);
   }
 
   // 2. Read settings early (reused later for recycleWorktrees)
@@ -215,9 +216,7 @@ export async function aiMergeTask(
   // 5. Spawn pi agent to resolve conflicts (if any) and write commit message
   await store.updateTask(taskId, { status: "merging" });
 
-  console.log(
-    `[merger] ${taskId}: ${hasConflicts ? "resolving conflicts + " : ""}writing commit message`,
-  );
+  mergerLog.log(`${taskId}: ${hasConflicts ? "resolving conflicts + " : ""}writing commit message`);
 
   const agentLogger = new AgentLogger({
     store,
@@ -253,7 +252,7 @@ export async function aiMergeTask(
     }).trim();
 
     if (staged !== "0") {
-      console.log("[merger] Agent didn't commit — committing with fallback message");
+      mergerLog.log("Agent didn't commit — committing with fallback message");
       const escapedLog = commitLog.replace(/"/g, '\\"');
       const fallbackPrefix = includeTaskId ? `feat(${taskId})` : "feat";
       execSync(
@@ -265,7 +264,7 @@ export async function aiMergeTask(
     result.merged = true;
   } catch (err: any) {
     // Agent failed — try to abort the merge
-    console.error(`[merger] Agent failed: ${err.message}`);
+    mergerLog.error(`Agent failed: ${err.message}`);
     try {
       execSync("git reset --merge", { cwd: rootDir, stdio: "pipe" });
     } catch { /* */ }
@@ -290,7 +289,7 @@ export async function aiMergeTask(
   if (worktreePath && existsSync(worktreePath)) {
     const otherUser = await findWorktreeUser(store, worktreePath, taskId);
     if (otherUser) {
-      console.log(`[merger] Worktree retained — still needed by ${otherUser}`);
+      mergerLog.log(`Worktree retained — still needed by ${otherUser}`);
       result.worktreeRemoved = false;
     } else if (options.pool && settings.recycleWorktrees) {
       options.pool.release(worktreePath);

@@ -5,6 +5,7 @@ import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { createHaiAgent } from "./pi.js";
 import type { AgentSemaphore } from "./concurrency.js";
 import { AgentLogger } from "./agent-logger.js";
+import { triageLog } from "./logger.js";
 
 const TRIAGE_SYSTEM_PROMPT = `You are a task specification agent for "hai", an AI-orchestrated task board.
 
@@ -188,7 +189,7 @@ export class TriageProcessor {
     this.activePollMs = interval;
     this.pollInterval = setInterval(() => this.poll(), interval);
     this.poll();
-    console.log("[triage] Processor started");
+    triageLog.log("Processor started");
   }
 
   stop(): void {
@@ -198,7 +199,7 @@ export class TriageProcessor {
       this.pollInterval = null;
       this.activePollMs = null;
     }
-    console.log("[triage] Processor stopped");
+    triageLog.log("Processor stopped");
   }
 
   /**
@@ -214,7 +215,7 @@ export class TriageProcessor {
     }
     this.activePollMs = newIntervalMs;
     this.pollInterval = setInterval(() => this.poll(), newIntervalMs);
-    console.log(`[triage] Poll interval updated to ${newIntervalMs}ms`);
+    triageLog.log(`Poll interval updated to ${newIntervalMs}ms`);
   }
 
   private async poll(): Promise<void> {
@@ -233,7 +234,7 @@ export class TriageProcessor {
         await this.specifyTask(task);
       }
     } catch (err) {
-      console.error("[triage] Poll error:", err);
+      triageLog.error("Poll error:", err);
     }
   }
 
@@ -241,7 +242,7 @@ export class TriageProcessor {
     if (this.processing.has(task.id)) return;
     this.processing.add(task.id);
 
-    console.log(`[triage] Specifying ${task.id}: ${task.title || task.description.slice(0, 60)}`);
+    triageLog.log(`Specifying ${task.id}: ${task.title || task.description.slice(0, 60)}`);
     this.options.onSpecifyStart?.(task);
 
     try {
@@ -259,7 +260,7 @@ export class TriageProcessor {
             ? (id, delta) => this.options.onAgentText!(id, delta)
             : undefined,
           onAgentTool: (_id, name) => {
-            console.log(`[triage] ${task.id} tool: ${name}`);
+            triageLog.log(`${task.id} tool: ${name}`);
           },
         });
 
@@ -293,13 +294,13 @@ export class TriageProcessor {
 
           if (dupMatch) {
             const dupId = dupMatch[1];
-            console.log(`[triage] ${task.id} is a duplicate of ${dupId} — closing`);
+            triageLog.log(`${task.id} is a duplicate of ${dupId} — closing`);
             await this.store.logEntry(task.id, `Duplicate of ${dupId} — closed`);
             await this.store.deleteTask(task.id);
           } else {
             await this.store.updateTask(task.id, { status: null });
             await this.store.moveTask(task.id, "todo");
-            console.log(`[triage] ✓ ${task.id} specified and moved to todo`);
+            triageLog.log(`✓ ${task.id} specified and moved to todo`);
             this.options.onSpecifyComplete?.(task);
           }
         } finally {
@@ -317,10 +318,10 @@ export class TriageProcessor {
       // Race condition: task was deleted (e.g. as a duplicate) between listTasks()
       // and specifyTask(). The file is gone, so just log and skip — no point retrying.
       if (err.code === "ENOENT") {
-        console.log(`[triage] ${task.id} no longer exists — skipping`);
+        triageLog.log(`${task.id} no longer exists — skipping`);
       } else {
         await this.store.updateTask(task.id, { status: null }).catch(() => {});
-        console.error(`[triage] ✗ ${task.id} specification failed:`, err.message);
+        triageLog.error(`✗ ${task.id} specification failed:`, err.message);
         this.options.onSpecifyError?.(task, err);
       }
     } finally {

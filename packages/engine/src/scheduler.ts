@@ -1,5 +1,6 @@
 import { resolveDependencyOrder, type TaskStore, type Task } from "@hai/core";
 import type { AgentSemaphore } from "./concurrency.js";
+import { schedulerLog } from "./logger.js";
 
 /**
  * Check whether two sets of file scope paths overlap.
@@ -91,9 +92,7 @@ export class Scheduler {
     this.activePollMs = interval;
     this.pollInterval = setInterval(() => this.schedule(), interval);
     this.schedule();
-    console.log(
-      `[scheduler] Started (poll interval: ${interval}ms)`,
-    );
+    schedulerLog.log(`Started (poll interval: ${interval}ms)`);
   }
 
   stop(): void {
@@ -103,7 +102,7 @@ export class Scheduler {
       this.pollInterval = null;
       this.activePollMs = null;
     }
-    console.log("[scheduler] Stopped");
+    schedulerLog.log("Stopped");
   }
 
   /**
@@ -119,7 +118,7 @@ export class Scheduler {
     }
     this.activePollMs = newIntervalMs;
     this.pollInterval = setInterval(() => this.schedule(), newIntervalMs);
-    console.log(`[scheduler] Poll interval updated to ${newIntervalMs}ms`);
+    schedulerLog.log(`Poll interval updated to ${newIntervalMs}ms`);
   }
 
   /**
@@ -162,9 +161,7 @@ export class Scheduler {
 
       if (activeWorktrees >= maxWorktrees) {
         if (!this.wasWorktreeLimited) {
-          console.log(
-            `[scheduler] Worktree limit reached (${activeWorktrees}/${maxWorktrees})`,
-          );
+          schedulerLog.log(`Worktree limit reached (${activeWorktrees}/${maxWorktrees})`);
           this.wasWorktreeLimited = true;
         }
         return;
@@ -262,9 +259,7 @@ export class Scheduler {
         }
 
         // Dependencies met — clear status and move to in-progress
-        console.log(
-          `[scheduler] Starting ${task.id}: ${task.title || task.id} (deps satisfied)`,
-        );
+        schedulerLog.log(`Starting ${task.id}: ${task.title || task.id} (deps satisfied)`);
         await this.store.updateTask(task.id, { status: null, blockedBy: null });
         await this.store.moveTask(task.id, "in-progress");
         this.options.onSchedule?.(task);
@@ -277,7 +272,7 @@ export class Scheduler {
         }
       }
     } catch (err) {
-      console.error("[scheduler] Scheduling error:", err);
+      schedulerLog.error("Scheduling error:", err);
     } finally {
       this.scheduling = false;
     }
