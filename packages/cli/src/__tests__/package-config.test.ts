@@ -24,10 +24,36 @@ describe("CLI package.json publishing config", () => {
     expect(pkg.bin.kb).toBe("./dist/bin.js");
   });
 
-  it('has "files" array that includes "dist"', () => {
+  it('has "files" array with refined globs for dist output', () => {
     expect(pkg.files).toBeDefined();
     expect(Array.isArray(pkg.files)).toBe(true);
-    expect(pkg.files).toContain("dist");
+    expect(pkg.files).toContain("dist/**/*.js");
+    expect(pkg.files).toContain("dist/**/*.d.ts");
+    expect(pkg.files).toContain("dist/**/*.d.ts.map");
+    expect(pkg.files).toContain("dist/**/*.js.map");
+    expect(pkg.files).toContain("dist/client/**");
+    expect(pkg.files).toContain("README.md");
+  });
+
+  it("does not include bare 'dist' entry or globs that would match Bun binaries", () => {
+    const bunBinaryNames = [
+      "kb",
+      "kb-linux-x64",
+      "kb-linux-arm64",
+      "kb-darwin-x64",
+      "kb-darwin-arm64",
+      "kb-windows-x64.exe",
+    ];
+    // No bare "dist" entry that would include everything
+    expect(pkg.files).not.toContain("dist");
+    // No glob that explicitly targets Bun binaries
+    for (const entry of pkg.files) {
+      for (const bin of bunBinaryNames) {
+        expect(entry).not.toBe(`dist/${bin}`);
+      }
+      // No wildcard like "dist/kb*" that would match binaries
+      expect(entry).not.toMatch(/^dist\/kb/);
+    }
   });
 
   it("is not private", () => {
