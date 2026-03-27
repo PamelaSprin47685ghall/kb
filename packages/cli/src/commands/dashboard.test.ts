@@ -97,7 +97,7 @@ describe("runDashboard — WorktreePool wiring", () => {
   });
 
   it("passes a WorktreePool instance to TaskExecutor", async () => {
-    await runDashboard(0, { engine: true, open: false });
+    await runDashboard(0, { open: false });
 
     expect(capturedExecutorOpts).toBeDefined();
     expect(capturedExecutorOpts!.pool).toBeInstanceOf(WorktreePool);
@@ -107,7 +107,7 @@ describe("runDashboard — WorktreePool wiring", () => {
     const { aiMergeTask } = await import("@hai/engine");
     const { createServer } = await import("@hai/dashboard");
 
-    await runDashboard(0, { engine: false, open: false });
+    await runDashboard(0, { open: false });
 
     // rawMerge is exposed as the onMerge callback wired into createServer.
     const createServerCall = (createServer as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -125,7 +125,7 @@ describe("runDashboard — WorktreePool wiring", () => {
     const { aiMergeTask } = await import("@hai/engine");
     const { createServer } = await import("@hai/dashboard");
 
-    await runDashboard(0, { engine: true, open: false });
+    await runDashboard(0, { open: false });
 
     // Trigger merger via onMerge
     const createServerCall = (createServer as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -170,7 +170,7 @@ describe("runDashboard — auto-merge pause exclusion", () => {
       pollIntervalMs: 60_000,
     });
 
-    await runDashboard(0, { engine: true, open: false });
+    await runDashboard(0, { open: false });
 
     const { aiMergeTask } = await import("@hai/engine");
 
@@ -205,7 +205,7 @@ describe("runDashboard — auto-merge pause exclusion", () => {
       Promise.resolve({ merged: true }),
     );
 
-    await runDashboard(0, { engine: true, open: false });
+    await runDashboard(0, { open: false });
 
     // Give async handlers time to process
     await new Promise((r) => setTimeout(r, 50));

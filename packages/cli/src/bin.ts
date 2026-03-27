@@ -59,7 +59,6 @@ Usage:
 
 Options:
   --port, -p <port>          Dashboard port (default: 4040)
-  --engine                   Enable AI engine (auto-specify + execute tasks)
   --attach <file>            Attach file(s) on task create (repeatable)
   --help, -h                 Show this help
 
@@ -87,9 +86,8 @@ async function main() {
         const portIdxShort = args.indexOf("-p");
         const pi = portIdx !== -1 ? portIdx : portIdxShort;
         const port = pi !== -1 ? parseInt(args[pi + 1], 10) : 4040;
-        const engine = args.includes("--engine");
         const open = !args.includes("--no-open");
-        await runDashboard(port, { engine, open });
+        await runDashboard(port, { open });
         break;
       }
 

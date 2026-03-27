@@ -29,11 +29,8 @@ Tasks with dependencies are processed sequentially. Independent tasks run in par
 # Install dependencies
 pnpm install
 
-# Start the board (UI only)
+# Start the board (with AI engine)
 pnpm dev dashboard
-
-# Start with AI engine (auto-specify + auto-execute)
-pnpm dev dashboard -- --engine
 
 # Create a task via CLI
 pnpm dev task create "Fix the login redirect bug"
@@ -121,9 +118,9 @@ Every API response includes standard rate limit headers:
 
 When a client exceeds the limit, the API returns `429 Too Many Requests`.
 
-### AI Engine (`--engine`)
+### AI Engine
 
-When enabled, three components run:
+The AI engine starts automatically with the dashboard. Three components run:
 
 - **TriageProcessor** — Watches triage column. Spawns a pi agent session that reads the project, understands context, and writes a full PROMPT.md specification. Moves task to todo.
 
@@ -141,8 +138,7 @@ Each pi agent session gets:
 
 ```bash
 pnpm install
-pnpm dev dashboard              # Board only
-pnpm dev dashboard -- --engine  # Board + AI engine
+pnpm dev dashboard              # Board + AI engine
 pnpm dev task list              # CLI commands
 ```
 

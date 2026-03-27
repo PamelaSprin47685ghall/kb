@@ -12,7 +12,7 @@ function openBrowser(url: string): void {
   exec(cmd, () => {});
 }
 
-export async function runDashboard(port: number, opts: { engine?: boolean; open?: boolean } = {}) {
+export async function runDashboard(port: number, opts: { open?: boolean } = {}) {
   const cwd = process.cwd();
   const store = new TaskStore(cwd);
   await store.init();
@@ -143,16 +143,8 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
   // Start the web server with AI merge, auth, and model registry wired in
   const app = createServer(store, { onMerge, authStorage, modelRegistry });
 
-  // Clean shutdown for file watcher when engine is not active
-  if (!opts.engine) {
-    process.on("SIGINT", () => {
-      store.stopWatching();
-      process.exit(0);
-    });
-  }
-
-  // Optionally start the AI engine
-  if (opts.engine) {
+  // Start the AI engine
+  {
     const triage = new TriageProcessor(store, cwd, {
       semaphore,
       onSpecifyStart: (t) => console.log(`[engine] Specifying ${t.id}...`),
@@ -242,13 +234,9 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
     console.log();
     console.log(`  Tasks stored in .hai/tasks/`);
     console.log(`  Merge:      AI-assisted (conflict resolution + commit messages)`);
-    if (opts.engine) {
-      console.log(`  AI engine:  ✓ active`);
-      console.log(`    • triage: auto-specifying tasks`);
-      console.log(`    • scheduler: dependency-aware execution`);
-    } else {
-      console.log(`  AI engine:  off (use --engine to enable)`);
-    }
+    console.log(`  AI engine:  ✓ active`);
+    console.log(`    • triage: auto-specifying tasks`);
+    console.log(`    • scheduler: dependency-aware execution`);
     console.log(`  File watcher: ✓ active`);
     console.log(`  Press Ctrl+C to stop`);
     console.log();
