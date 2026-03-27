@@ -37,6 +37,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
 
   constructor(private rootDir: string) {
     super();
+    this.setMaxListeners(100);
     this.kbDir = join(rootDir, ".kb");
     this.tasksDir = join(this.kbDir, "tasks");
     this.configPath = join(this.kbDir, "config.json");
