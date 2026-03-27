@@ -46,7 +46,7 @@ kb — AI-orchestrated task board
 
 Usage:
   kb dashboard                        Start the board web UI
-  kb task create [desc] [--attach f]   Create a new task (goes to triage)
+  kb task create [desc] [opts]         Create a new task (goes to triage)
   kb task list                        List all tasks
   kb task show <id>                   Show task details, steps, log
   kb task move <id> <col>             Move a task to a column
@@ -60,6 +60,7 @@ Usage:
 Options:
   --port, -p <port>          Dashboard port (default: 4040)
   --attach <file>            Attach file(s) on task create (repeatable)
+  --depends <id>             Declare dependency on task create (repeatable)
   --help, -h                 Show this help
 
 Columns: triage, todo, in-progress, in-review, done
@@ -97,17 +98,21 @@ async function main() {
           case "create": {
             const createArgs = args.slice(2);
             const attachFiles: string[] = [];
+            const dependsIds: string[] = [];
             const descParts: string[] = [];
             for (let i = 0; i < createArgs.length; i++) {
               if (createArgs[i] === "--attach" && i + 1 < createArgs.length) {
                 attachFiles.push(createArgs[i + 1]);
+                i++; // skip the value
+              } else if (createArgs[i] === "--depends" && i + 1 < createArgs.length) {
+                dependsIds.push(createArgs[i + 1]);
                 i++; // skip the value
               } else {
                 descParts.push(createArgs[i]);
               }
             }
             const title = descParts.join(" ");
-            await runTaskCreate(title || undefined, attachFiles.length > 0 ? attachFiles : undefined);
+            await runTaskCreate(title || undefined, attachFiles.length > 0 ? attachFiles : undefined, dependsIds.length > 0 ? dependsIds : undefined);
             break;
           }
           case "list":

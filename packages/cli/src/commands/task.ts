@@ -10,7 +10,7 @@ async function getStore(): Promise<TaskStore> {
   return store;
 }
 
-export async function runTaskCreate(descriptionArg?: string, attachFiles?: string[]) {
+export async function runTaskCreate(descriptionArg?: string, attachFiles?: string[], depends?: string[]) {
   let description = descriptionArg;
 
   if (!description) {
@@ -25,7 +25,7 @@ export async function runTaskCreate(descriptionArg?: string, attachFiles?: strin
   }
 
   const store = await getStore();
-  const task = await store.createTask({ description: description.trim() });
+  const task = await store.createTask({ description: description.trim(), dependencies: depends });
 
   const label = task.description.length > 60
     ? task.description.slice(0, 60) + "…"
@@ -34,6 +34,9 @@ export async function runTaskCreate(descriptionArg?: string, attachFiles?: strin
   console.log();
   console.log(`  ✓ Created ${task.id}: ${label}`);
   console.log(`    Column: triage`);
+  if (task.dependencies.length > 0) {
+    console.log(`    Dependencies: ${task.dependencies.join(", ")}`);
+  }
   console.log(`    Path:   .kb/tasks/${task.id}/`);
 
   if (attachFiles && attachFiles.length > 0) {

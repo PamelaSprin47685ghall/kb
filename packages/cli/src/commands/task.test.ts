@@ -206,3 +206,67 @@ describe("runTaskCreate with --attach", () => {
     expect(mockAddAttachment).not.toHaveBeenCalled();
   });
 });
+
+describe("runTaskCreate with --depends", () => {
+  let logSpy: ReturnType<typeof vi.spyOn>;
+  let mockCreateTask: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    mockCreateTask = vi.fn().mockImplementation((input: { description: string; dependencies?: string[] }) => ({
+      id: "KB-003",
+      description: input.description,
+      column: "triage",
+      dependencies: input.dependencies || [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
+
+    (TaskStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      init: vi.fn(),
+      createTask: mockCreateTask,
+    }));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("passes dependencies to store.createTask when depends provided", async () => {
+    await runTaskCreate("test task", undefined, ["KB-124"]);
+
+    expect(mockCreateTask).toHaveBeenCalledWith({
+      description: "test task",
+      dependencies: ["KB-124"],
+    });
+  });
+
+  it("passes multiple dependencies correctly", async () => {
+    await runTaskCreate("test task", undefined, ["KB-124", "KB-100"]);
+
+    expect(mockCreateTask).toHaveBeenCalledWith({
+      description: "test task",
+      dependencies: ["KB-124", "KB-100"],
+    });
+
+    const depsLine = logSpy.mock.calls.find(
+      (call) => typeof call[0] === "string" && call[0].includes("Dependencies:"),
+    );
+    expect(depsLine).toBeDefined();
+    expect(depsLine![0]).toContain("KB-124");
+    expect(depsLine![0]).toContain("KB-100");
+  });
+
+  it("works without dependencies (backward compatible)", async () => {
+    await runTaskCreate("test task");
+
+    expect(mockCreateTask).toHaveBeenCalledWith({
+      description: "test task",
+      dependencies: undefined,
+    });
+  });
+});
