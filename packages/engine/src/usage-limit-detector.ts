@@ -50,6 +50,25 @@ export function isUsageLimitError(errorMessage: string): boolean {
  * agents hitting limits only trigger one pause. The flag resets when `globalPause`
  * is externally set back to `false` (detected by reading settings before pausing).
  */
+/**
+ * Check if an agent session resolved with an error after exhausting retries.
+ *
+ * pi-coding-agent's `session.prompt()` does **not** throw when retries are
+ * exhausted — it resolves normally and stores the error on `session.state.error`.
+ * Call this immediately after every `await session.prompt(...)` to re-raise
+ * the swallowed error so existing `catch` blocks (with `isUsageLimitError`
+ * checks) can detect rate-limit conditions and trigger `UsageLimitPauser`.
+ *
+ * @param session — The agent session (or any object with `state.error?: string`)
+ * @throws {Error} If `session.state.error` is set and non-empty
+ */
+export function checkSessionError(session: { state: { error?: string } }): void {
+  const error = session.state?.error;
+  if (error) {
+    throw new Error(error);
+  }
+}
+
 export class UsageLimitPauser {
   private paused = false;
 

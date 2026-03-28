@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { isUsageLimitError, UsageLimitPauser } from "./usage-limit-detector.js";
+import { isUsageLimitError, UsageLimitPauser, checkSessionError } from "./usage-limit-detector.js";
 
 // ── isUsageLimitError classification tests ───────────────────────────
 
@@ -70,6 +70,59 @@ describe("isUsageLimitError", () => {
   it("returns false for generic error messages", () => {
     expect(isUsageLimitError("Something went wrong")).toBe(false);
     expect(isUsageLimitError("Unexpected token in JSON")).toBe(false);
+  });
+});
+
+// ── checkSessionError tests ──────────────────────────────────────────
+
+describe("checkSessionError", () => {
+  it("throws when session.state.error is set", () => {
+    const session = { state: { error: "rate_limit_error: Rate limit exceeded" } };
+    expect(() => checkSessionError(session)).toThrow("rate_limit_error: Rate limit exceeded");
+  });
+
+  it("does not throw when session.state.error is undefined", () => {
+    const session = { state: { error: undefined } };
+    expect(() => checkSessionError(session)).not.toThrow();
+  });
+
+  it("does not throw when session.state.error is empty string", () => {
+    const session = { state: { error: "" } };
+    expect(() => checkSessionError(session)).not.toThrow();
+  });
+
+  it("thrown error message matches session.state.error exactly", () => {
+    const errorMessage = "overloaded_error: Overloaded";
+    const session = { state: { error: errorMessage } };
+
+    let thrownMessage: string | undefined;
+    try {
+      checkSessionError(session);
+    } catch (err: any) {
+      thrownMessage = err.message;
+    }
+
+    expect(thrownMessage).toBe(errorMessage);
+    // Verify isUsageLimitError can classify it
+    expect(isUsageLimitError(thrownMessage!)).toBe(true);
+  });
+
+  it("thrown error message for rate limit is classifiable by isUsageLimitError", () => {
+    const session = { state: { error: "429 Too Many Requests" } };
+
+    let thrownMessage: string | undefined;
+    try {
+      checkSessionError(session);
+    } catch (err: any) {
+      thrownMessage = err.message;
+    }
+
+    expect(isUsageLimitError(thrownMessage!)).toBe(true);
+  });
+
+  it("does not throw when state has no error property", () => {
+    const session = { state: {} };
+    expect(() => checkSessionError(session as any)).not.toThrow();
   });
 });
 

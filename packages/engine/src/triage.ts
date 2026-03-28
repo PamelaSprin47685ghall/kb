@@ -6,7 +6,7 @@ import { createKbAgent } from "./pi.js";
 import { PRIORITY_SPECIFY, type AgentSemaphore } from "./concurrency.js";
 import { AgentLogger } from "./agent-logger.js";
 import { triageLog } from "./logger.js";
-import { isUsageLimitError, type UsageLimitPauser } from "./usage-limit-detector.js";
+import { isUsageLimitError, checkSessionError, type UsageLimitPauser } from "./usage-limit-detector.js";
 
 const TRIAGE_SYSTEM_PROMPT = `You are a task specification agent for "kb", an AI-orchestrated task board.
 
@@ -365,6 +365,9 @@ export class TriageProcessor {
 
           const agentPrompt = buildSpecificationPrompt(detail, promptPath, settings, attachmentContents);
           await session.prompt(agentPrompt, imageContents.length > 0 ? { images: imageContents } : undefined);
+
+          // Re-raise errors that pi-coding-agent swallowed after exhausting retries.
+          checkSessionError(session);
 
           // Check if the agent flagged a duplicate
           const { readFile } = await import("node:fs/promises");

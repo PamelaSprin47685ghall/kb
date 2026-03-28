@@ -12,7 +12,7 @@ import { PRIORITY_EXECUTE, type AgentSemaphore } from "./concurrency.js";
 import type { WorktreePool } from "./worktree-pool.js";
 import { AgentLogger } from "./agent-logger.js";
 import { executorLog, reviewerLog } from "./logger.js";
-import { isUsageLimitError, type UsageLimitPauser } from "./usage-limit-detector.js";
+import { isUsageLimitError, checkSessionError, type UsageLimitPauser } from "./usage-limit-detector.js";
 
 // Re-export for backward compatibility (tests import from executor.ts)
 export { summarizeToolArgs } from "./agent-logger.js";
@@ -429,6 +429,11 @@ export class TaskExecutor {
         try {
           const agentPrompt = buildExecutionPrompt(detail, this.rootDir, settings);
           await session.prompt(agentPrompt);
+
+          // Re-raise errors that pi-coding-agent swallowed after exhausting retries.
+          // session.prompt() resolves normally even when retries are exhausted —
+          // the error is stored on session.state.error instead of being thrown.
+          checkSessionError(session);
 
           // If dependency was added during execution, discard worktree and move to triage
           if (this.depAborted.has(task.id)) {

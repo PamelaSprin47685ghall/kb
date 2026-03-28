@@ -11,6 +11,7 @@
 import type { TaskStore } from "@kb/core";
 import { createKbAgent } from "./pi.js";
 import { AgentLogger } from "./agent-logger.js";
+import { checkSessionError } from "./usage-limit-detector.js";
 
 const REVIEWER_SYSTEM_PROMPT = `You are an independent code and plan reviewer.
 
@@ -180,6 +181,11 @@ export async function reviewStep(
 
   try {
     await session.prompt(request);
+
+    // Re-raise errors that pi-coding-agent swallowed after exhausting retries.
+    // The caller (executor's createReviewStepTool) catches errors and returns
+    // UNAVAILABLE, so the thrown error will be handled there.
+    checkSessionError(session);
   } finally {
     if (agentLogger) await agentLogger.flush();
     session.dispose();

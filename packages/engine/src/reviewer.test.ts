@@ -79,3 +79,54 @@ describe("reviewStep — model settings threading", () => {
     expect(result.verdict).toBe("APPROVE");
   });
 });
+
+describe("reviewStep — exhausted-retry error detection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("throws when session.prompt() resolves with exhausted-retry error on state.error", async () => {
+    // session.prompt() resolves normally, but session.state.error is set
+    const mockSession = {
+      prompt: vi.fn().mockResolvedValue(undefined),
+      subscribe: vi.fn(),
+      dispose: vi.fn(),
+      state: { error: "rate_limit_error: Rate limit exceeded" },
+    };
+    mockedCreateHaiAgent.mockResolvedValue({ session: mockSession } as any);
+
+    await expect(
+      reviewStep("/tmp/worktree", "KB-100", 1, "Test Step", "code", "# prompt"),
+    ).rejects.toThrow("rate_limit_error: Rate limit exceeded");
+  });
+
+  it("disposes session in finally block despite the error", async () => {
+    const disposeFn = vi.fn();
+    const mockSession = {
+      prompt: vi.fn().mockResolvedValue(undefined),
+      subscribe: vi.fn(),
+      dispose: disposeFn,
+      state: { error: "rate_limit_error: Rate limit exceeded" },
+    };
+    mockedCreateHaiAgent.mockResolvedValue({ session: mockSession } as any);
+
+    await expect(
+      reviewStep("/tmp/worktree", "KB-100", 1, "Test Step", "code", "# prompt"),
+    ).rejects.toThrow();
+
+    // Session should be disposed in the finally block
+    expect(disposeFn).toHaveBeenCalled();
+  });
+
+  it("does not throw when session completes without error", async () => {
+    mockedCreateHaiAgent.mockResolvedValue(
+      createMockSession("### Verdict: APPROVE\n### Summary\nLooks good."),
+    );
+
+    const result = await reviewStep(
+      "/tmp/worktree", "KB-100", 1, "Test Step", "plan", "# prompt",
+    );
+
+    expect(result.verdict).toBe("APPROVE");
+  });
+});

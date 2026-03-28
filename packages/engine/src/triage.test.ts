@@ -1406,6 +1406,50 @@ describe("TriageProcessor usage limit detection", () => {
     expect(onError).toHaveBeenCalled();
   });
 
+  it("triggers global pause when session.prompt() resolves with exhausted-retry error on state.error", async () => {
+    const store = createMockStore();
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    // session.prompt() resolves normally, but session.state.error is set
+    const mockSession = {
+      prompt: vi.fn().mockResolvedValue(undefined),
+      dispose: vi.fn(),
+      state: { error: "overloaded_error: Overloaded" },
+    };
+    mockedCreateHaiAgent.mockResolvedValue({ session: mockSession } as any);
+
+    const onError = vi.fn();
+    const triage = new TriageProcessor(store, "/tmp/test", {
+      onSpecifyError: onError,
+      usageLimitPauser: pauser,
+    });
+
+    await triage.specifyTask({
+      id: "KB-001",
+      title: "Test",
+      description: "Test",
+      column: "triage",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // UsageLimitPauser should be called with "triage" agent type
+    expect(onUsageLimitHitSpy).toHaveBeenCalledWith(
+      "triage",
+      "KB-001",
+      "overloaded_error: Overloaded",
+    );
+    // Task status should be cleared (not moved to todo with broken spec)
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", { status: null });
+    // onSpecifyError callback should fire
+    expect(onError).toHaveBeenCalled();
+  });
+
   it("does NOT trigger global pause for non-usage-limit errors", async () => {
     const store = createMockStore();
     const pauser = new UsageLimitPauser(store);

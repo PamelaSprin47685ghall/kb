@@ -5,7 +5,7 @@ import { createKbAgent } from "./pi.js";
 import type { WorktreePool } from "./worktree-pool.js";
 import { AgentLogger } from "./agent-logger.js";
 import { mergerLog } from "./logger.js";
-import { isUsageLimitError, type UsageLimitPauser } from "./usage-limit-detector.js";
+import { isUsageLimitError, checkSessionError, type UsageLimitPauser } from "./usage-limit-detector.js";
 
 /**
  * Build the merge system prompt. When `includeTaskId` is true (default),
@@ -258,6 +258,9 @@ export async function aiMergeTask(
   try {
     const prompt = buildMergePrompt(taskId, branch, commitLog, diffStat, hasConflicts);
     await session.prompt(prompt);
+
+    // Re-raise errors that pi-coding-agent swallowed after exhausting retries.
+    checkSessionError(session);
 
     // 6. Verify the commit happened — if there are still staged changes, agent didn't commit
     const staged = execSync("git diff --cached --quiet 2>&1; echo $?", {

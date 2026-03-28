@@ -2576,6 +2576,51 @@ describe("TaskExecutor usage limit detection", () => {
     expect(onError).toHaveBeenCalled();
   });
 
+  it("triggers global pause when session.prompt() resolves with exhausted-retry error on state.error", async () => {
+    const store = createMockStore();
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    // session.prompt() resolves normally, but session.state.error is set
+    // (this is what happens when pi-coding-agent exhausts retries)
+    const mockSession = {
+      prompt: vi.fn().mockResolvedValue(undefined),
+      dispose: vi.fn(),
+      state: { error: "rate_limit_error: Rate limit exceeded" },
+    };
+    mockedCreateHaiAgent.mockResolvedValue({ session: mockSession } as any);
+
+    const onError = vi.fn();
+    const executor = new TaskExecutor(store, "/tmp/test", {
+      onError,
+      usageLimitPauser: pauser,
+    });
+
+    await executor.execute({
+      id: "KB-001",
+      title: "Test",
+      description: "Test",
+      column: "in-progress",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // UsageLimitPauser should be called
+    expect(onUsageLimitHitSpy).toHaveBeenCalledWith(
+      "executor",
+      "KB-001",
+      "rate_limit_error: Rate limit exceeded",
+    );
+    // Task should be marked as failed
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", { status: "failed" });
+    // onError callback should fire
+    expect(onError).toHaveBeenCalled();
+  });
+
   it("triggers global pause for overloaded error", async () => {
     const store = createMockStore();
     const pauser = new UsageLimitPauser(store);

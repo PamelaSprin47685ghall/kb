@@ -466,6 +466,39 @@ describe("aiMergeTask — usage limit detection", () => {
     expect(store.updateSettings).toHaveBeenCalledWith({ globalPause: true });
   });
 
+  it("triggers global pause when session.prompt() resolves with exhausted-retry error on state.error", async () => {
+    const store = createMockStore(
+      { id: "KB-050", worktree: "/tmp/root/.worktrees/KB-050" },
+      [{ id: "KB-050", worktree: "/tmp/root/.worktrees/KB-050", column: "in-review" } as Task],
+    );
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    // session.prompt() resolves normally, but session.state.error is set
+    const mockSession = {
+      prompt: vi.fn().mockResolvedValue(undefined),
+      dispose: vi.fn(),
+      state: { error: "429 Too Many Requests" },
+    };
+    mockedCreateHaiAgent.mockResolvedValue({ session: mockSession } as any);
+
+    await expect(
+      aiMergeTask(store, "/tmp/root", "KB-050", { usageLimitPauser: pauser }),
+    ).rejects.toThrow("AI merge failed");
+
+    // UsageLimitPauser should be called with "merger" agent type
+    expect(onUsageLimitHitSpy).toHaveBeenCalledWith(
+      "merger",
+      "KB-050",
+      "429 Too Many Requests",
+    );
+    // git reset --merge should be called to abort the merge
+    const resetCalls = mockedExecSync.mock.calls.filter(
+      (c) => String(c[0]).includes("reset --merge"),
+    );
+    expect(resetCalls.length).toBeGreaterThan(0);
+  });
+
   it("does NOT trigger global pause for non-usage-limit errors", async () => {
     const store = createMockStore(
       { id: "KB-050", worktree: "/tmp/root/.worktrees/KB-050" },
