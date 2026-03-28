@@ -43,14 +43,14 @@ export function InlineCreateCard({ tasks, onSubmit, onCancel, addToast }: Inline
     const handleFocusOut = (e: FocusEvent) => {
       // relatedTarget is the element receiving focus — if it's inside the card, ignore
       if (e.relatedTarget instanceof Node && card.contains(e.relatedTarget)) return;
-      // Only cancel if empty
-      if (description.trim() === "" && pendingImages.length === 0) {
+      // Only cancel if empty and dropdown is not open
+      if (description.trim() === "" && pendingImages.length === 0 && dependencies.length === 0 && !showDeps) {
         onCancel();
       }
     };
     card.addEventListener("focusout", handleFocusOut);
     return () => card.removeEventListener("focusout", handleFocusOut);
-  }, [description, pendingImages, onCancel]);
+  }, [description, pendingImages, dependencies, showDeps, onCancel]);
 
   // Clean up object URLs on unmount to prevent memory leaks
   useEffect(() => {
@@ -205,7 +205,7 @@ export function InlineCreateCard({ tasks, onSubmit, onCancel, addToast }: Inline
                 )
               : tasks;
             return (
-              <div className="dep-dropdown">
+              <div className="dep-dropdown" onMouseDown={(e) => e.preventDefault()}>
                 <input
                   className="dep-dropdown-search"
                   placeholder="Search tasks…"
@@ -221,6 +221,7 @@ export function InlineCreateCard({ tasks, onSubmit, onCancel, addToast }: Inline
                     <div
                       key={t.id}
                       className={`dep-dropdown-item${dependencies.includes(t.id) ? " selected" : ""}`}
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => toggleDep(t.id)}
                     >
                       <span className="dep-dropdown-id">{t.id}</span>

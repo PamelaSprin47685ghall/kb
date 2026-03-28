@@ -67,6 +67,43 @@ describe("InlineCreateCard blur-to-cancel", () => {
   });
 });
 
+describe("InlineCreateCard dep-dropdown focus retention", () => {
+  const testTasks: Task[] = [
+    { id: "KB-010", title: "Task A", description: "First task", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+  ];
+
+  it("dep-dropdown-item mouseDown calls preventDefault to retain focus", () => {
+    renderCard(testTasks);
+    // Open the dropdown
+    fireEvent.click(screen.getByText(/Deps/));
+    const item = document.querySelector(".dep-dropdown-item") as HTMLElement;
+    expect(item).toBeTruthy();
+
+    // Fire mouseDown and verify preventDefault was called —
+    // this is the mechanism that keeps focus on the search input in
+    // real browsers and prevents a focusout with relatedTarget: null
+    const prevented = !fireEvent.mouseDown(item);
+    expect(prevented).toBe(true);
+  });
+
+  it("does NOT call onCancel when focus leaves card with selected dependencies but empty description", () => {
+    const { props } = renderCard(testTasks);
+    const textarea = screen.getByPlaceholderText("What needs to be done?");
+
+    // Open dropdown and select a dependency
+    fireEvent.click(screen.getByText(/Deps/));
+    const item = document.querySelector(".dep-dropdown-item") as HTMLElement;
+    expect(item).toBeTruthy();
+    fireEvent.click(item);
+
+    // Focus the textarea then blur out of the card entirely
+    textarea.focus();
+    fireEvent.focusOut(textarea, { relatedTarget: null });
+
+    expect(props.onCancel).not.toHaveBeenCalled();
+  });
+});
+
 describe("InlineCreateCard dependency dropdown search", () => {
   const testTasks: Task[] = [
     { id: "KB-001", title: "Fix login", description: "Login page broken", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
