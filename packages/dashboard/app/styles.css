@@ -1343,4 +1343,61 @@ html, body {
     flex: 1;
     text-align: center;
   }
+
+  /* Settings modal: stack sidebar above content for mobile */
+  .settings-layout {
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .settings-sidebar {
+    width: auto;
+    min-width: 0;
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 6px 8px;
+    gap: 2px;
+  }
+
+  .settings-nav-item {
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 6px 12px;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .settings-nav-item:hover {
+    border-left-color: transparent;
+    border-bottom-color: var(--border);
+  }
+
+  .settings-nav-item.active {
+    border-left-color: transparent;
+    border-bottom-color: var(--todo);
+  }
+
+  .settings-content {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .settings-section-heading {
+    padding: 12px 14px 10px;
+    margin-right: 14px;
+  }
+
+  .form-group {
+    padding: 0 14px;
+  }
+
+  .auth-provider-row {
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    gap: 8px;
+  }
 }

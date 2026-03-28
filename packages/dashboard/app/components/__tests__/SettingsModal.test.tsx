@@ -563,4 +563,80 @@ describe("SettingsModal", () => {
     expect(screen.getByText("Anthropic")).toBeTruthy();
     expect(screen.getByText("GitHub")).toBeTruthy();
   });
+
+  // --- Mobile structure tests (DOM classes that responsive CSS targets) ---
+
+  it("has .settings-layout wrapping sidebar and content", async () => {
+    const { container } = render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    const layout = container.querySelector(".settings-layout");
+    expect(layout).toBeTruthy();
+    expect(layout!.querySelector(".settings-sidebar")).toBeTruthy();
+    expect(layout!.querySelector(".settings-content")).toBeTruthy();
+  });
+
+  it("has .settings-sidebar with 7 .settings-nav-item buttons for all sections", async () => {
+    const { container } = render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    const sidebar = container.querySelector(".settings-sidebar");
+    expect(sidebar).toBeTruthy();
+    const navItems = sidebar!.querySelectorAll(".settings-nav-item");
+    expect(navItems.length).toBe(7);
+
+    const labels = Array.from(navItems).map((el) => el.textContent);
+    expect(labels).toEqual(["General", "Model", "Scheduling", "Worktrees", "Commands", "Merge", "Authentication"]);
+  });
+
+  it("has .settings-content as sibling of .settings-sidebar", async () => {
+    const { container } = render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    const layout = container.querySelector(".settings-layout");
+    const children = Array.from(layout!.children);
+    const sidebar = children.find((el) => el.classList.contains("settings-sidebar"));
+    const content = children.find((el) => el.classList.contains("settings-content"));
+    expect(sidebar).toBeTruthy();
+    expect(content).toBeTruthy();
+  });
+
+  it("marks the active nav item with .active class", async () => {
+    const { container } = render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    // Default active section is General
+    const activeItems = container.querySelectorAll(".settings-nav-item.active");
+    expect(activeItems.length).toBe(1);
+    expect(activeItems[0].textContent).toBe("General");
+
+    // Switch to Scheduling
+    fireEvent.click(screen.getByText("Scheduling"));
+    const newActive = container.querySelectorAll(".settings-nav-item.active");
+    expect(newActive.length).toBe(1);
+    expect(newActive[0].textContent).toBe("Scheduling");
+  });
+
+  it("auth provider rows contain .auth-provider-info and action button", async () => {
+    (fetchAuthStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      providers: [
+        { id: "anthropic", name: "Anthropic", authenticated: true },
+        { id: "github", name: "GitHub", authenticated: false },
+      ],
+    });
+
+    const { container } = render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Authentication"));
+    await waitFor(() => expect(fetchAuthStatus).toHaveBeenCalled());
+
+    const rows = container.querySelectorAll(".auth-provider-row");
+    expect(rows.length).toBe(2);
+
+    for (const row of rows) {
+      expect(row.querySelector(".auth-provider-info")).toBeTruthy();
+      expect(row.querySelector("button")).toBeTruthy();
+    }
+  });
 });
