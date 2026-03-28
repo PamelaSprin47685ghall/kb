@@ -95,6 +95,10 @@ export interface TaskCreateInput {
 }
 
 export interface Settings {
+  /** When true, all automated agent activity is halted — triage specification,
+   *  task scheduling, execution, and auto-merge. Acts as a global emergency stop
+   *  for the entire AI engine. Individual per-task pause flags are unaffected. */
+  globalPause?: boolean;
   /** Maximum number of concurrent AI agents across all activity types
    *  (triage specification, task execution, and merge operations). */
   maxConcurrent: number;
@@ -137,6 +141,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  globalPause: false,
   maxConcurrent: 2,
   maxWorktrees: 4,
   pollIntervalMs: 15000,

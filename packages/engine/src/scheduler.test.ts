@@ -788,6 +788,99 @@ describe("Scheduler worktree limit logging", () => {
   });
 });
 
+describe("Scheduler globalPause", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function runSchedule(scheduler: Scheduler): Promise<void> {
+    (scheduler as any).running = true;
+    await scheduler.schedule();
+  }
+
+  it("does not move any tasks when globalPause is true", async () => {
+    const tasks = [
+      makeTask({ id: "KB-001", column: "todo" }),
+      makeTask({ id: "KB-002", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      globalPause: true,
+    });
+    const scheduler = new Scheduler(store, { maxConcurrent: 2 });
+
+    await runSchedule(scheduler);
+
+    expect(store.moveTask).not.toHaveBeenCalled();
+    expect(store.updateTask).not.toHaveBeenCalled();
+  });
+
+  it("resumes scheduling when globalPause is toggled back to false", async () => {
+    const tasks = [
+      makeTask({ id: "KB-001", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      globalPause: true,
+    });
+    const scheduler = new Scheduler(store, { maxConcurrent: 2 });
+
+    await runSchedule(scheduler);
+    expect(store.moveTask).not.toHaveBeenCalled();
+
+    // Toggle globalPause off
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      globalPause: false,
+    });
+
+    await runSchedule(scheduler);
+    expect(store.moveTask).toHaveBeenCalledWith("KB-001", "in-progress");
+  });
+
+  it("logs once when entering global pause state", async () => {
+    const tasks = [makeTask({ id: "KB-001", column: "todo" })];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      globalPause: true,
+    });
+    const scheduler = new Scheduler(store, { maxConcurrent: 2 });
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await runSchedule(scheduler);
+    await runSchedule(scheduler);
+    await runSchedule(scheduler);
+
+    const pauseMessages = logSpy.mock.calls.filter(
+      (args) =>
+        typeof args[0] === "string" &&
+        args[0].includes("Global pause active"),
+    );
+    expect(pauseMessages).toHaveLength(1);
+    logSpy.mockRestore();
+  });
+});
+
 describe("Scheduler in-review worktrees do not count against maxWorktrees", () => {
   beforeEach(() => {
     vi.clearAllMocks();

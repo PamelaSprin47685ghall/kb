@@ -44,7 +44,7 @@ vi.mock("../../hooks/useTasks", () => ({
   }),
 }));
 
-import { fetchAuthStatus, fetchSettings } from "../../api";
+import { fetchAuthStatus, fetchSettings, updateSettings } from "../../api";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -130,5 +130,81 @@ describe("App auto-open Settings on unauthenticated", () => {
     await waitFor(() => expect(fetchSettings).toHaveBeenCalledTimes(3));
     expect(screen.getByLabelText("Task Prefix")).toBeTruthy();
     expect(screen.queryByText("Anthropic")).toBeNull();
+  });
+});
+
+describe("App global pause", () => {
+  it("initializes global pause state from fetchSettings", async () => {
+    (fetchSettings as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...defaultSettings,
+      globalPause: true,
+    });
+
+    render(<App />);
+
+    // When globally paused, the button should show "Resume AI engine"
+    await waitFor(() => {
+      expect(screen.getByTitle("Resume AI engine")).toBeTruthy();
+    });
+  });
+
+  it("shows Pause button when globalPause is false", async () => {
+    (fetchSettings as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...defaultSettings,
+      globalPause: false,
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Pause AI engine")).toBeTruthy();
+    });
+  });
+
+  it("toggles global pause state and calls updateSettings", async () => {
+    (fetchSettings as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...defaultSettings,
+      globalPause: false,
+    });
+
+    render(<App />);
+
+    // Wait for initial render
+    await waitFor(() => {
+      expect(screen.getByTitle("Pause AI engine")).toBeTruthy();
+    });
+
+    // Click the pause button
+    fireEvent.click(screen.getByTitle("Pause AI engine"));
+
+    // Should optimistically switch to "Resume" state
+    await waitFor(() => {
+      expect(screen.getByTitle("Resume AI engine")).toBeTruthy();
+    });
+
+    // Should call updateSettings with globalPause: true
+    expect(updateSettings).toHaveBeenCalledWith({ globalPause: true });
+  });
+
+  it("reverts global pause state on updateSettings failure", async () => {
+    (fetchSettings as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...defaultSettings,
+      globalPause: false,
+    });
+    (updateSettings as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Network error"));
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Pause AI engine")).toBeTruthy();
+    });
+
+    // Click the pause button — will fail
+    fireEvent.click(screen.getByTitle("Pause AI engine"));
+
+    // Should revert back to "Pause" state after failure
+    await waitFor(() => {
+      expect(screen.getByTitle("Pause AI engine")).toBeTruthy();
+    });
   });
 });

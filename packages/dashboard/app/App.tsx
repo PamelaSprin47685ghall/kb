@@ -17,6 +17,7 @@ function AppInner() {
   const [settingsInitialSection, setSettingsInitialSection] = useState<SectionId | undefined>(undefined);
   const [maxConcurrent, setMaxConcurrent] = useState(2);
   const [autoMerge, setAutoMerge] = useState(false);
+  const [globalPaused, setGlobalPaused] = useState(false);
   const { tasks, createTask, moveTask, deleteTask, mergeTask, retryTask } = useTasks();
 
   useEffect(() => {
@@ -24,7 +25,10 @@ function AppInner() {
       .then((cfg) => setMaxConcurrent(cfg.maxConcurrent))
       .catch(() => {/* keep default */});
     fetchSettings()
-      .then((s) => setAutoMerge(!!s.autoMerge))
+      .then((s) => {
+        setAutoMerge(!!s.autoMerge);
+        setGlobalPaused(!!s.globalPause);
+      })
       .catch(() => {/* keep default */});
     fetchAuthStatus()
       .then(({ providers }) => {
@@ -59,6 +63,16 @@ function AppInner() {
     }
   }, [autoMerge]);
 
+  const handleToggleGlobalPause = useCallback(async () => {
+    const next = !globalPaused;
+    setGlobalPaused(next);
+    try {
+      await updateSettings({ globalPause: next });
+    } catch {
+      setGlobalPaused(!next); // revert on failure
+    }
+  }, [globalPaused]);
+
   const handleDetailOpen = useCallback((task: TaskDetail) => {
     setDetailTask(task);
   }, []);
@@ -67,7 +81,11 @@ function AppInner() {
 
   return (
     <>
-      <Header onOpenSettings={() => setSettingsOpen(true)} />
+      <Header
+        onOpenSettings={() => setSettingsOpen(true)}
+        globalPaused={globalPaused}
+        onToggleGlobalPause={handleToggleGlobalPause}
+      />
       <Board
         tasks={tasks}
         maxConcurrent={maxConcurrent}

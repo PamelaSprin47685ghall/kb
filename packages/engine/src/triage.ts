@@ -179,6 +179,7 @@ export class TriageProcessor {
   /** The interval (ms) of the currently active `setInterval` timer. */
   private activePollMs: number | null = null;
   private processing = new Set<string>();
+  private wasGlobalPaused = false;
 
   constructor(
     private store: TaskStore,
@@ -229,6 +230,16 @@ export class TriageProcessor {
     try {
       const settings = await this.store.getSettings();
       this.refreshPollInterval(settings.pollIntervalMs);
+
+      // Global pause: halt all triage activity
+      if (settings.globalPause) {
+        if (!this.wasGlobalPaused) {
+          triageLog.log("Global pause active — triage halted");
+          this.wasGlobalPaused = true;
+        }
+        return;
+      }
+      this.wasGlobalPaused = false;
 
       const tasks = await this.store.listTasks();
       const triageTasks = tasks.filter(

@@ -291,6 +291,132 @@ describe("TriageProcessor paused tasks", () => {
   });
 });
 
+describe("TriageProcessor globalPause", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("does not specify any tasks when globalPause is true", async () => {
+    const triageTask = {
+      id: "KB-001",
+      title: "Test",
+      description: "Test task",
+      column: "triage" as const,
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const store = createMockStore([triageTask]);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      globalPause: true,
+    });
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+    await (triage as any).poll();
+
+    // Agent should never be created when globally paused
+    expect(mockedCreateHaiAgent).not.toHaveBeenCalled();
+    expect(store.updateTask).not.toHaveBeenCalled();
+  });
+
+  it("resumes triage when globalPause is toggled back to false", async () => {
+    const triageTask = {
+      id: "KB-002",
+      title: "Normal",
+      description: "Normal task",
+      column: "triage" as const,
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const store = createMockStore([triageTask]);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      globalPause: true,
+    });
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+
+    // First poll — paused, nothing happens
+    await (triage as any).poll();
+    expect(mockedCreateHaiAgent).not.toHaveBeenCalled();
+
+    // Toggle globalPause off
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      globalPause: false,
+    });
+
+    // Second poll — should process tasks
+    await (triage as any).poll();
+    expect(store.updateTask).toHaveBeenCalledWith("KB-002", { status: "specifying" });
+  });
+
+  it("logs once when entering global pause state", async () => {
+    const store = createMockStore([]);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      globalPause: true,
+    });
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await (triage as any).poll();
+    await (triage as any).poll();
+    await (triage as any).poll();
+
+    const pauseMessages = logSpy.mock.calls.filter(
+      (args) =>
+        typeof args[0] === "string" &&
+        args[0].includes("Global pause active"),
+    );
+    expect(pauseMessages).toHaveLength(1);
+    logSpy.mockRestore();
+  });
+});
+
 describe("buildSpecificationPrompt", () => {
   it("includes project commands when testCommand is set", () => {
     const task = createMockTaskDetail();

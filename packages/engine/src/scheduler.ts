@@ -75,6 +75,7 @@ export class Scheduler {
   private running = false;
   private scheduling = false;
   private wasWorktreeLimited = false;
+  private wasGlobalPaused = false;
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   /** The interval (ms) of the currently active `setInterval` timer. */
   private activePollMs: number | null = null;
@@ -180,6 +181,16 @@ export class Scheduler {
 
       // Refresh the poll interval if the persisted setting has changed
       this.refreshPollInterval(settings.pollIntervalMs);
+
+      // Global pause: halt all scheduling activity
+      if (settings.globalPause) {
+        if (!this.wasGlobalPaused) {
+          schedulerLog.log("Global pause active — scheduling halted");
+          this.wasGlobalPaused = true;
+        }
+        return;
+      }
+      this.wasGlobalPaused = false;
 
       // Count only in-progress tasks toward the worktree limit.
       // In-review tasks with worktrees are idle (waiting to merge) and

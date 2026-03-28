@@ -92,8 +92,12 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
       while (mergeQueue.length > 0) {
         const taskId = mergeQueue.shift()!;
         try {
-          // Re-check autoMerge before each merge (setting may have been toggled)
+          // Re-check autoMerge and globalPause before each merge (setting may have been toggled)
           const settings = await store.getSettings();
+          if (settings.globalPause) {
+            console.log(`[auto-merge] Skipping ${taskId} — global pause active`);
+            continue;
+          }
           if (!settings.autoMerge) {
             console.log(`[auto-merge] Skipping ${taskId} — autoMerge disabled`);
             continue;
@@ -128,6 +132,7 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
     if (task.paused) return;
     try {
       const settings = await store.getSettings();
+      if (settings.globalPause) return;
       if (!settings.autoMerge) return;
       enqueueMerge(task.id);
     } catch { /* ignore settings read errors */ }
@@ -203,7 +208,7 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
           const s = await store.getSettings();
           // Refresh the cached limit so the semaphore picks up live changes
           cachedMaxConcurrent = s.maxConcurrent;
-          if (s.autoMerge) {
+          if (!s.globalPause && s.autoMerge) {
             const tasks = await store.listTasks();
             for (const t of tasks) {
               if (t.column === "in-review" && !t.paused) {
