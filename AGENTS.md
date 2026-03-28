@@ -1,8 +1,8 @@
 # Project Guidelines
 
-## Changesets
+## Finalizing changes
 
-When making changes that affect the published `@dustinbyrne/kb` package, create a changeset file:
+When making changes that affect the published `@dustinbyrne/kb` (cli) package, create a changeset file:
 
 ```bash
 cat > .changeset/<short-description>.md << 'EOF'
@@ -15,6 +15,7 @@ EOF
 ```
 
 Bump types:
+
 - **patch**: bug fixes, internal changes
 - **minor**: new features, new CLI commands
 - **major**: breaking changes
@@ -26,7 +27,7 @@ Only create changesets for changes that affect the published `@dustinbyrne/kb` p
 ## Package Structure
 
 - `@kb/core` — domain model, task store (private, not published)
-- `@kb/dashboard` — web UI + API server (private, not published)  
+- `@kb/dashboard` — web UI + API server (private, not published)
 - `@kb/engine` — AI agents: triage, executor, reviewer, merger, scheduler (private, not published)
 - `@dustinbyrne/kb` — CLI entry point (published to npm)
 
