@@ -6,6 +6,7 @@ import { createKbAgent } from "./pi.js";
 import { PRIORITY_SPECIFY, type AgentSemaphore } from "./concurrency.js";
 import { AgentLogger } from "./agent-logger.js";
 import { triageLog } from "./logger.js";
+import { isUsageLimitError, type UsageLimitPauser } from "./usage-limit-detector.js";
 
 const TRIAGE_SYSTEM_PROMPT = `You are a task specification agent for "kb", an AI-orchestrated task board.
 
@@ -157,6 +158,8 @@ Write the PROMPT.md directly using the write tool. Nothing else.`;
 export interface TriageProcessorOptions {
   pollIntervalMs?: number;
   semaphore?: AgentSemaphore;
+  /** Usage limit pauser — triggers global pause when API limits are detected. */
+  usageLimitPauser?: UsageLimitPauser;
   onSpecifyStart?: (task: Task) => void;
   onSpecifyComplete?: (task: Task) => void;
   onSpecifyError?: (task: Task, error: Error) => void;
@@ -361,6 +364,10 @@ export class TriageProcessor {
       if (err.code === "ENOENT") {
         triageLog.log(`${task.id} no longer exists — skipping`);
       } else {
+        // Check if the error is a usage-limit error and trigger global pause
+        if (this.options.usageLimitPauser && isUsageLimitError(err.message)) {
+          await this.options.usageLimitPauser.onUsageLimitHit("triage", task.id, err.message);
+        }
         await this.store.updateTask(task.id, { status: null }).catch(() => {});
         triageLog.error(`✗ ${task.id} specification failed:`, err.message);
         this.options.onSpecifyError?.(task, err);

@@ -38,6 +38,7 @@ function createMockStore(tasks: any[] = []) {
     parseDependenciesFromPrompt: vi.fn().mockResolvedValue([]),
     logEntry: vi.fn().mockResolvedValue({}),
     deleteTask: vi.fn().mockResolvedValue({}),
+    updateSettings: vi.fn().mockResolvedValue({}),
     getSettings: vi.fn().mockResolvedValue({
       maxConcurrent: 2,
       maxWorktrees: 4,
@@ -950,5 +951,143 @@ describe("TriageProcessor dependency parsing", () => {
       size: "L",
       reviewLevel: 3,
     });
+  });
+});
+
+// ── Usage limit detection in triage ──────────────────────────────────
+
+import { UsageLimitPauser } from "./usage-limit-detector.js";
+
+describe("TriageProcessor usage limit detection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("triggers global pause when triage catches a usage-limit error", async () => {
+    const store = createMockStore();
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    mockedCreateHaiAgent.mockRejectedValue(new Error("rate_limit_error: Rate limit exceeded"));
+
+    const onError = vi.fn();
+    const triage = new TriageProcessor(store, "/tmp/test", {
+      onSpecifyError: onError,
+      usageLimitPauser: pauser,
+    });
+
+    await triage.specifyTask({
+      id: "KB-001",
+      title: "Test",
+      description: "Test",
+      column: "triage",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    expect(onUsageLimitHitSpy).toHaveBeenCalledWith(
+      "triage",
+      "KB-001",
+      "rate_limit_error: Rate limit exceeded",
+    );
+    expect(store.updateSettings).toHaveBeenCalledWith({ globalPause: true });
+    // Error callback should still fire
+    expect(onError).toHaveBeenCalled();
+  });
+
+  it("does NOT trigger global pause for non-usage-limit errors", async () => {
+    const store = createMockStore();
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    mockedCreateHaiAgent.mockRejectedValue(new Error("connection refused"));
+
+    const onError = vi.fn();
+    const triage = new TriageProcessor(store, "/tmp/test", {
+      onSpecifyError: onError,
+      usageLimitPauser: pauser,
+    });
+
+    await triage.specifyTask({
+      id: "KB-001",
+      title: "Test",
+      description: "Test",
+      column: "triage",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    expect(onUsageLimitHitSpy).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalled();
+  });
+
+  it("does NOT trigger global pause for ENOENT errors (deleted tasks)", async () => {
+    const store = createMockStore();
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    const enoentError = Object.assign(
+      new Error("ENOENT: no such file or directory"),
+      { code: "ENOENT" },
+    );
+    store.updateTask.mockRejectedValue(enoentError);
+
+    const onError = vi.fn();
+    const triage = new TriageProcessor(store, "/tmp/test", {
+      onSpecifyError: onError,
+      usageLimitPauser: pauser,
+    });
+
+    await triage.specifyTask({
+      id: "KB-001",
+      title: "Test",
+      description: "Test",
+      column: "triage",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    expect(onUsageLimitHitSpy).not.toHaveBeenCalled();
+    // ENOENT errors don't call onSpecifyError
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("works without usageLimitPauser (backward compatible)", async () => {
+    const store = createMockStore();
+
+    mockedCreateHaiAgent.mockRejectedValue(new Error("rate_limit_error: Rate limit exceeded"));
+
+    const onError = vi.fn();
+    const triage = new TriageProcessor(store, "/tmp/test", {
+      onSpecifyError: onError,
+    });
+
+    await triage.specifyTask({
+      id: "KB-001",
+      title: "Test",
+      description: "Test",
+      column: "triage",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Should not crash — just call onError
+    expect(onError).toHaveBeenCalled();
   });
 });

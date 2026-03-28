@@ -12,6 +12,7 @@ import { PRIORITY_EXECUTE, type AgentSemaphore } from "./concurrency.js";
 import type { WorktreePool } from "./worktree-pool.js";
 import { AgentLogger } from "./agent-logger.js";
 import { executorLog, reviewerLog } from "./logger.js";
+import { isUsageLimitError, type UsageLimitPauser } from "./usage-limit-detector.js";
 
 // Re-export for backward compatibility (tests import from executor.ts)
 export { summarizeToolArgs } from "./agent-logger.js";
@@ -144,6 +145,8 @@ export interface TaskExecutorOptions {
   semaphore?: AgentSemaphore;
   /** Worktree pool for recycling idle worktrees across tasks. */
   pool?: WorktreePool;
+  /** Usage limit pauser — triggers global pause when API limits are detected. */
+  usageLimitPauser?: UsageLimitPauser;
   onStart?: (task: Task, worktreePath: string) => void;
   onComplete?: (task: Task) => void;
   onError?: (task: Task, error: Error) => void;
@@ -452,6 +455,10 @@ export class TaskExecutor {
         await this.store.logEntry(task.id, "Execution paused — agent terminated, moved to todo");
         await this.store.moveTask(task.id, "todo");
       } else {
+        // Check if the error is a usage-limit error and trigger global pause
+        if (this.options.usageLimitPauser && isUsageLimitError(err.message)) {
+          await this.options.usageLimitPauser.onUsageLimitHit("executor", task.id, err.message);
+        }
         executorLog.error(`✗ ${task.id} execution failed:`, err.message);
         await this.store.logEntry(task.id, `Execution failed: ${err.message}`);
         await this.store.updateTask(task.id, { status: "failed" });

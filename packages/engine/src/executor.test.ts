@@ -69,6 +69,7 @@ function createMockStore() {
     moveTask: vi.fn().mockResolvedValue({}),
     logEntry: vi.fn().mockResolvedValue(undefined),
     parseStepsFromPrompt: vi.fn().mockResolvedValue([]),
+    updateSettings: vi.fn().mockResolvedValue({}),
     getSettings: vi.fn().mockResolvedValue({
       maxConcurrent: 2,
       maxWorktrees: 4,
@@ -2329,5 +2330,141 @@ describe("task_add_dep tool", () => {
 
     // Task should NOT be marked as failed
     expect(store.updateTask).not.toHaveBeenCalledWith("KB-DEP", { status: "failed" });
+  });
+});
+
+// ── Usage limit detection in executor ────────────────────────────────
+
+import { UsageLimitPauser } from "./usage-limit-detector.js";
+
+describe("TaskExecutor usage limit detection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedExistsSync.mockReturnValue(true);
+  });
+
+  it("triggers global pause when executor catches a usage-limit error", async () => {
+    const store = createMockStore();
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    mockedCreateHaiAgent.mockRejectedValue(new Error("rate_limit_error: Rate limit exceeded"));
+
+    const onError = vi.fn();
+    const executor = new TaskExecutor(store, "/tmp/test", {
+      onError,
+      usageLimitPauser: pauser,
+    });
+
+    await executor.execute({
+      id: "KB-001",
+      title: "Test",
+      description: "Test",
+      column: "in-progress",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    expect(onUsageLimitHitSpy).toHaveBeenCalledWith(
+      "executor",
+      "KB-001",
+      "rate_limit_error: Rate limit exceeded",
+    );
+    expect(store.updateSettings).toHaveBeenCalledWith({ globalPause: true });
+    // Task should still be marked as failed
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", { status: "failed" });
+    expect(onError).toHaveBeenCalled();
+  });
+
+  it("does NOT trigger global pause for non-usage-limit errors", async () => {
+    const store = createMockStore();
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    mockedCreateHaiAgent.mockRejectedValue(new Error("connection refused"));
+
+    const onError = vi.fn();
+    const executor = new TaskExecutor(store, "/tmp/test", {
+      onError,
+      usageLimitPauser: pauser,
+    });
+
+    await executor.execute({
+      id: "KB-001",
+      title: "Test",
+      description: "Test",
+      column: "in-progress",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    expect(onUsageLimitHitSpy).not.toHaveBeenCalled();
+    // Task should still be marked as failed
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", { status: "failed" });
+  });
+
+  it("works without usageLimitPauser (backward compatible)", async () => {
+    const store = createMockStore();
+
+    mockedCreateHaiAgent.mockRejectedValue(new Error("rate_limit_error: Rate limit exceeded"));
+
+    const onError = vi.fn();
+    const executor = new TaskExecutor(store, "/tmp/test", { onError });
+
+    await executor.execute({
+      id: "KB-001",
+      title: "Test",
+      description: "Test",
+      column: "in-progress",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Should not crash — just mark as failed
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", { status: "failed" });
+    expect(onError).toHaveBeenCalled();
+  });
+
+  it("triggers global pause for overloaded error", async () => {
+    const store = createMockStore();
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    mockedCreateHaiAgent.mockRejectedValue(new Error("overloaded_error: Overloaded"));
+
+    const executor = new TaskExecutor(store, "/tmp/test", {
+      usageLimitPauser: pauser,
+    });
+
+    await executor.execute({
+      id: "KB-002",
+      title: "Test",
+      description: "Test",
+      column: "in-progress",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    expect(onUsageLimitHitSpy).toHaveBeenCalledWith(
+      "executor",
+      "KB-002",
+      "overloaded_error: Overloaded",
+    );
   });
 });

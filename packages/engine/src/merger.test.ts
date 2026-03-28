@@ -46,6 +46,7 @@ function createMockStore(taskOverrides: Partial<Task> = {}, allTasks: Task[] = [
     moveTask: vi.fn().mockResolvedValue(baseTask),
     logEntry: vi.fn().mockResolvedValue(undefined),
     appendAgentLog: vi.fn().mockResolvedValue(undefined),
+    updateSettings: vi.fn().mockResolvedValue({}),
     getSettings: vi.fn().mockResolvedValue({ ...DEFAULT_SETTINGS }),
     emit: vi.fn(),
     on: vi.fn(),
@@ -424,5 +425,111 @@ describe("aiMergeTask — agent log persistence", () => {
 
     expect(onAgentText).toHaveBeenCalledWith("hi");
     expect(store.appendAgentLog).toHaveBeenCalledWith("KB-050", "hi", "text", undefined, "merger");
+  });
+});
+
+// ── Usage limit detection in merger ──────────────────────────────────
+
+import { UsageLimitPauser } from "./usage-limit-detector.js";
+
+describe("aiMergeTask — usage limit detection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedExistsSync.mockReturnValue(true);
+    setupHappyPathExecSync();
+  });
+
+  it("triggers global pause when merger catches a usage-limit error", async () => {
+    const store = createMockStore(
+      { id: "KB-050", worktree: "/tmp/root/.worktrees/KB-050" },
+      [{ id: "KB-050", worktree: "/tmp/root/.worktrees/KB-050", column: "in-review" } as Task],
+    );
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockRejectedValue(new Error("rate_limit_error: Rate limit exceeded")),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    await expect(
+      aiMergeTask(store, "/tmp/root", "KB-050", { usageLimitPauser: pauser }),
+    ).rejects.toThrow("AI merge failed");
+
+    expect(onUsageLimitHitSpy).toHaveBeenCalledWith(
+      "merger",
+      "KB-050",
+      "rate_limit_error: Rate limit exceeded",
+    );
+    expect(store.updateSettings).toHaveBeenCalledWith({ globalPause: true });
+  });
+
+  it("does NOT trigger global pause for non-usage-limit errors", async () => {
+    const store = createMockStore(
+      { id: "KB-050", worktree: "/tmp/root/.worktrees/KB-050" },
+      [{ id: "KB-050", worktree: "/tmp/root/.worktrees/KB-050", column: "in-review" } as Task],
+    );
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockRejectedValue(new Error("connection refused")),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    await expect(
+      aiMergeTask(store, "/tmp/root", "KB-050", { usageLimitPauser: pauser }),
+    ).rejects.toThrow("AI merge failed");
+
+    expect(onUsageLimitHitSpy).not.toHaveBeenCalled();
+  });
+
+  it("works without usageLimitPauser (backward compatible)", async () => {
+    const store = createMockStore(
+      { id: "KB-050", worktree: "/tmp/root/.worktrees/KB-050" },
+      [{ id: "KB-050", worktree: "/tmp/root/.worktrees/KB-050", column: "in-review" } as Task],
+    );
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockRejectedValue(new Error("rate_limit_error: Rate limit exceeded")),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    // Should not crash — just re-throw
+    await expect(
+      aiMergeTask(store, "/tmp/root", "KB-050"),
+    ).rejects.toThrow("AI merge failed");
+  });
+
+  it("triggers global pause for overloaded error", async () => {
+    const store = createMockStore(
+      { id: "KB-050", worktree: "/tmp/root/.worktrees/KB-050" },
+      [{ id: "KB-050", worktree: "/tmp/root/.worktrees/KB-050", column: "in-review" } as Task],
+    );
+    const pauser = new UsageLimitPauser(store);
+    const onUsageLimitHitSpy = vi.spyOn(pauser, "onUsageLimitHit");
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockRejectedValue(new Error("overloaded_error: Overloaded")),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    await expect(
+      aiMergeTask(store, "/tmp/root", "KB-050", { usageLimitPauser: pauser }),
+    ).rejects.toThrow("AI merge failed");
+
+    expect(onUsageLimitHitSpy).toHaveBeenCalledWith(
+      "merger",
+      "KB-050",
+      "overloaded_error: Overloaded",
+    );
   });
 });

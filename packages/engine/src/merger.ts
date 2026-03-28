@@ -5,6 +5,7 @@ import { createKbAgent } from "./pi.js";
 import type { WorktreePool } from "./worktree-pool.js";
 import { AgentLogger } from "./agent-logger.js";
 import { mergerLog } from "./logger.js";
+import { isUsageLimitError, type UsageLimitPauser } from "./usage-limit-detector.js";
 
 /**
  * Build the merge system prompt. When `includeTaskId` is true (default),
@@ -104,6 +105,8 @@ export interface MergerOptions {
   /** Worktree pool — when provided and `recycleWorktrees` is enabled,
    *  worktrees are released to the pool instead of being removed. */
   pool?: WorktreePool;
+  /** Usage limit pauser — triggers global pause when API limits are detected. */
+  usageLimitPauser?: UsageLimitPauser;
 }
 
 /**
@@ -269,6 +272,10 @@ export async function aiMergeTask(
   } catch (err: any) {
     // Agent failed — try to abort the merge
     mergerLog.error(`Agent failed: ${err.message}`);
+    // Check if the error is a usage-limit error and trigger global pause
+    if (options.usageLimitPauser && isUsageLimitError(err.message)) {
+      await options.usageLimitPauser.onUsageLimitHit("merger", taskId, err.message);
+    }
     try {
       execSync("git reset --merge", { cwd: rootDir, stdio: "pipe" });
     } catch { /* */ }

@@ -8,3 +8,4 @@ export { reviewStep, type ReviewType, type ReviewVerdict, type ReviewResult, typ
 export { createKbAgent, type AgentOptions, type AgentResult } from "./pi.js";
 export { WorktreePool } from "./worktree-pool.js";
 export { createLogger, type Logger } from "./logger.js";
+export { isUsageLimitError, UsageLimitPauser } from "./usage-limit-detector.js";

@@ -2,7 +2,7 @@ import { exec } from "node:child_process";
 import type { AddressInfo } from "node:net";
 import { TaskStore } from "@kb/core";
 import { createServer } from "@kb/dashboard";
-import { TriageProcessor, TaskExecutor, Scheduler, AgentSemaphore, WorktreePool, aiMergeTask, PRIORITY_MERGE } from "@kb/engine";
+import { TriageProcessor, TaskExecutor, Scheduler, AgentSemaphore, WorktreePool, aiMergeTask, UsageLimitPauser, PRIORITY_MERGE } from "@kb/engine";
 import { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 
 function openBrowser(url: string): void {
@@ -47,12 +47,22 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
   //
   const pool = new WorktreePool();
 
+  // ── Usage limit pauser ──────────────────────────────────────────────
+  //
+  // Shared pauser that triggers globalPause when any agent hits an API
+  // usage limit (rate limits, overloaded, quota exceeded). A single
+  // instance is shared across triage, executor, and merger so that the
+  // pause is deduplicated across concurrent agents.
+  //
+  const usageLimitPauser = new UsageLimitPauser(store);
+
   // AI-powered merge handler (used by the web UI for manual merges).
   // Wrapped with the shared semaphore so merges count toward the global
   // concurrency limit alongside triage and execution agents.
   const rawMerge = (taskId: string) =>
     aiMergeTask(store, cwd, taskId, {
       pool,
+      usageLimitPauser,
       onAgentText: (delta) => process.stdout.write(delta),
       onAgentTool: (name) => console.log(`[merger] tool: ${name}`),
     });
@@ -153,6 +163,7 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
   {
     const triage = new TriageProcessor(store, cwd, {
       semaphore,
+      usageLimitPauser,
       onSpecifyStart: (t) => console.log(`[engine] Specifying ${t.id}...`),
       onSpecifyComplete: (t) => console.log(`[engine] ✓ ${t.id} → todo`),
       onSpecifyError: (t, e) => console.log(`[engine] ✗ ${t.id}: ${e.message}`),
@@ -161,6 +172,7 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
     const executor = new TaskExecutor(store, cwd, {
       semaphore,
       pool,
+      usageLimitPauser,
       onStart: (t, p) => console.log(`[engine] Executing ${t.id} in ${p}`),
       onComplete: (t) => console.log(`[engine] ✓ ${t.id} → in-review`),
       onError: (t, e) => console.log(`[engine] ✗ ${t.id}: ${e.message}`),
