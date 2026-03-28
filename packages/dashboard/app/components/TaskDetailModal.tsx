@@ -233,7 +233,9 @@ export function TaskDetailModal({
     }
   }, [task.id, dependencies, addToast]);
 
-  const availableTasks = tasks.filter((t) => t.id !== task.id && !dependencies.includes(t.id));
+  const availableTasks = tasks
+    .filter((t) => t.id !== task.id && !dependencies.includes(t.id))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const transitions = VALID_TRANSITIONS[task.column] || [];
 

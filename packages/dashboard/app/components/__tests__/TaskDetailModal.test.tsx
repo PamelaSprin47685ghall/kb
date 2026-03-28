@@ -512,6 +512,34 @@ describe("TaskDetailModal", () => {
     expect(style.maxHeight).toBe("");
   });
 
+  it("renders dependency dropdown items sorted newest-first by createdAt", () => {
+    const allTasks: Task[] = [
+      { id: "KB-001", description: "Oldest", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+      { id: "KB-003", description: "Newest", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-03-01T00:00:00Z", updatedAt: "2026-03-01T00:00:00Z" },
+      { id: "KB-002", description: "Middle", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
+      { id: "KB-099", description: "Self", column: "in-progress" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-03-15T00:00:00Z", updatedAt: "2026-03-15T00:00:00Z" },
+    ];
+
+    render(
+      <TaskDetailModal
+        task={makeTask({ dependencies: [] })}
+        tasks={allTasks}
+        onClose={noop}
+        onMoveTask={noopMove}
+        onDeleteTask={noopDelete}
+        onMergeTask={noopMerge}
+        addToast={noop}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Add Dependency"));
+    const items = document.querySelectorAll(".dep-dropdown-item");
+    expect(items).toHaveLength(3);
+
+    const ids = Array.from(items).map((el) => el.querySelector(".dep-dropdown-id")?.textContent);
+    expect(ids).toEqual(["KB-003", "KB-002", "KB-001"]);
+  });
+
   describe("tab toggle", () => {
     it("defaults to the Definition tab", () => {
       const { container } = render(
