@@ -218,7 +218,15 @@ export class Scheduler {
       const specifying = tasks.filter(
         (t) => t.column === "triage" && t.status === "specifying" && !t.paused,
       );
-      const agentSlots = inProgress.length + specifying.length;
+
+      // When a semaphore is provided, it is the single source of truth for
+      // global concurrency — its availableCount already accounts for ALL
+      // slot holders (executors, specifiers, mergers). Counting specifying
+      // tasks in agentSlots as well would double-count them. Without a
+      // semaphore (fallback mode), count specifying tasks directly.
+      const agentSlots = this.options.semaphore
+        ? inProgress.length
+        : inProgress.length + specifying.length;
 
       // When a semaphore is provided, factor in its available slots so we
       // don't schedule more tasks than the global limit allows. Triage and

@@ -179,6 +179,128 @@ describe("TriageProcessor with semaphore", () => {
     expect(maxConcurrent).toBe(1);
     expect(sem.activeCount).toBe(0);
   });
+
+  it("does not set status 'specifying' until semaphore slot is acquired", async () => {
+    const sem = new AgentSemaphore(1);
+    const store = createMockStore();
+
+    // Acquire the only slot so specifyTask must wait
+    await sem.acquire();
+
+    let agentStarted = false;
+    mockedCreateHaiAgent.mockImplementation(async () => {
+      agentStarted = true;
+      return {
+        session: {
+          prompt: vi.fn().mockResolvedValue(undefined),
+          dispose: vi.fn(),
+        },
+      } as any;
+    });
+
+    const triage = new TriageProcessor(store, "/tmp/test", { semaphore: sem });
+
+    const task = {
+      id: "KB-001",
+      title: "Test",
+      description: "Test",
+      column: "triage" as const,
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Start specifyTask — it will queue on the semaphore
+    const specPromise = triage.specifyTask(task);
+    await new Promise((r) => setTimeout(r, 20));
+
+    // While queued, status should NOT have been set to "specifying"
+    const specifyingCalls = store.updateTask.mock.calls.filter(
+      (c: any[]) => c[1]?.status === "specifying",
+    );
+    expect(specifyingCalls).toHaveLength(0);
+    expect(agentStarted).toBe(false);
+
+    // Release the slot — now specifyTask should proceed
+    sem.release();
+    await specPromise;
+
+    // Now status should have been set to "specifying"
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", { status: "specifying" });
+    expect(agentStarted).toBe(true);
+  });
+});
+
+describe("TriageProcessor poll re-entrance guard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("prevents overlapping poll() calls — second call is a no-op", async () => {
+    const store = createMockStore([
+      {
+        id: "KB-001",
+        title: "Test",
+        description: "Test",
+        column: "triage",
+        dependencies: [],
+        steps: [],
+        currentStep: 0,
+        log: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+
+    // Make specifyTask slow so the first poll is still running when the second fires
+    let resolveAgent: (() => void) | undefined;
+    mockedCreateHaiAgent.mockImplementation(async () => {
+      await new Promise<void>((r) => {
+        resolveAgent = r;
+      });
+      return {
+        session: {
+          prompt: vi.fn().mockResolvedValue(undefined),
+          dispose: vi.fn(),
+        },
+      } as any;
+    });
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+
+    // Start first poll (will block in createKbAgent)
+    const poll1 = (triage as any).poll();
+    // Allow microtasks to run so poll1 gets into specifyTask
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Start second poll — should return immediately due to guard
+    const poll2 = (triage as any).poll();
+    await poll2;
+
+    // listTasks should only have been called once (first poll)
+    expect(store.listTasks).toHaveBeenCalledTimes(1);
+
+    // Resolve the agent to let the first poll finish
+    resolveAgent?.();
+    await poll1;
+  });
+
+  it("allows a new poll() after the previous one completes", async () => {
+    const store = createMockStore([]);
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+
+    await (triage as any).poll();
+    await (triage as any).poll();
+
+    // Both polls should have called listTasks (sequentially, guard released)
+    expect(store.listTasks).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("TriageProcessor dynamic poll interval", () => {
@@ -660,13 +782,15 @@ describe("TriageProcessor deleted task handling", () => {
     await triage.specifyTask(dummyTask);
 
     expect(onError).not.toHaveBeenCalled();
-    // updateTask called once for "specifying", but NOT for status reset (ENOENT path skips it)
-    expect(store.updateTask).toHaveBeenCalledTimes(1);
+    // getTask throws ENOENT before updateTask(status: "specifying") is reached
+    // (status update moved inside agentWork, after semaphore acquisition)
+    expect(store.updateTask).toHaveBeenCalledTimes(0);
   });
 
   it("cleans up processing Set on ENOENT so task is not stuck", async () => {
     const store = createMockStore();
-    store.updateTask.mockRejectedValueOnce(createEnoentError());
+    // getTask throws ENOENT (task deleted between poll and specify)
+    store.getTask.mockRejectedValueOnce(createEnoentError());
 
     const triage = new TriageProcessor(store, "/tmp/test", {});
 
@@ -868,7 +992,7 @@ describe("TriageProcessor dependency parsing", () => {
 
     // Verify updateTask was called with dependencies, size, and reviewLevel
     const updateCalls = store.updateTask.mock.calls;
-    // First call is { status: "specifying" }, second is the post-parse call
+    // First call is { status: "specifying" } (inside agentWork), second is the post-parse call
     expect(updateCalls.length).toBeGreaterThanOrEqual(2);
     const postParseCAll = updateCalls[1];
     expect(postParseCAll[0]).toBe("KB-001");

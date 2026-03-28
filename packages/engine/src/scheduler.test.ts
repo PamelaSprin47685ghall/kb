@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Scheduler } from "./scheduler.js";
+import { AgentSemaphore } from "./concurrency.js";
 
 function makeTask(overrides: Record<string, unknown> = {}) {
   return {
@@ -959,6 +960,100 @@ describe("Scheduler in-review worktrees do not count against maxWorktrees", () =
     await runSchedule(scheduler);
 
     // 2 in-progress = 2 active worktrees, maxWorktrees: 2 — no room for KB-003
+    expect(store.moveTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("Scheduler semaphore-aware slot counting", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function runSchedule(scheduler: Scheduler): Promise<void> {
+    (scheduler as any).running = true;
+    await scheduler.schedule();
+  }
+
+  it("with semaphore, specifying tasks do not double-count against agentSlots", async () => {
+    // Scenario: maxConcurrent=2, 1 specifying task holding a semaphore slot,
+    // 0 in-progress. Semaphore has 1 available slot. Should allow 1 new task.
+    const sem = new AgentSemaphore(2);
+    // Simulate a specifying task holding a slot
+    await sem.acquire();
+
+    const tasks = [
+      makeTask({ id: "KB-001", column: "triage", status: "specifying" }),
+      makeTask({ id: "KB-002", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+    const scheduler = new Scheduler(store, { maxConcurrent: 2, semaphore: sem });
+
+    await runSchedule(scheduler);
+
+    // With semaphore: agentSlots = inProgress(0), available = min(2-0, 4-0, 1) = 1
+    // KB-002 should be scheduled
+    expect(store.moveTask).toHaveBeenCalledWith("KB-002", "in-progress");
+
+    sem.release();
+  });
+
+  it("with semaphore, fully occupied semaphore blocks scheduling even with no in-progress tasks", async () => {
+    const sem = new AgentSemaphore(2);
+    // Both slots held (e.g., by two specifying agents)
+    await sem.acquire();
+    await sem.acquire();
+
+    const tasks = [
+      makeTask({ id: "KB-001", column: "triage", status: "specifying" }),
+      makeTask({ id: "KB-002", column: "triage", status: "specifying" }),
+      makeTask({ id: "KB-003", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+    const scheduler = new Scheduler(store, { maxConcurrent: 2, semaphore: sem });
+
+    await runSchedule(scheduler);
+
+    // semaphoreAvailable = 0 so nothing can start
+    expect(store.moveTask).not.toHaveBeenCalled();
+
+    sem.release();
+    sem.release();
+  });
+
+  it("without semaphore, specifying tasks still reduce available slots (backward compat)", async () => {
+    const tasks = [
+      makeTask({ id: "KB-001", column: "triage", status: "specifying" }),
+      makeTask({ id: "KB-002", column: "triage", status: "specifying" }),
+      makeTask({ id: "KB-003", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+    // No semaphore provided — fallback path
+    const scheduler = new Scheduler(store, { maxConcurrent: 2 });
+
+    await runSchedule(scheduler);
+
+    // agentSlots = 0 + 2(specifying) = 2, available = min(2-2, 4-0, Inf) = 0
     expect(store.moveTask).not.toHaveBeenCalled();
   });
 });

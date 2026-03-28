@@ -178,6 +178,7 @@ export interface TriageProcessorOptions {
  */
 export class TriageProcessor {
   private running = false;
+  private polling = false;
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   /** The interval (ms) of the currently active `setInterval` timer. */
   private activePollMs: number | null = null;
@@ -229,6 +230,8 @@ export class TriageProcessor {
 
   private async poll(): Promise<void> {
     if (!this.running) return;
+    if (this.polling) return;
+    this.polling = true;
 
     try {
       const settings = await this.store.getSettings();
@@ -254,6 +257,8 @@ export class TriageProcessor {
       }
     } catch (err) {
       triageLog.error("Poll error:", err);
+    } finally {
+      this.polling = false;
     }
   }
 
@@ -265,13 +270,15 @@ export class TriageProcessor {
     this.options.onSpecifyStart?.(task);
 
     try {
-      // Set status inside try so ENOENT (task deleted between poll and specify) is caught
-      await this.store.updateTask(task.id, { status: "specifying" });
       const detail = await this.store.getTask(task.id);
       const settings = await this.store.getSettings();
       const promptPath = `.kb/tasks/${task.id}/PROMPT.md`;
 
       const agentWork = async () => {
+        // Set status only after the semaphore slot has been acquired, so
+        // tasks waiting in the queue don't appear as "specifying".
+        await this.store.updateTask(task.id, { status: "specifying" });
+
         const agentLogger = new AgentLogger({
           store: this.store,
           taskId: task.id,
