@@ -523,4 +523,44 @@ describe("SettingsModal", () => {
     // Authentication content should NOT be visible
     expect(screen.queryByText("✗ Not authenticated")).toBeNull();
   });
+
+  it("shows sign-in hint when no providers are authenticated", async () => {
+    (fetchAuthStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      providers: [
+        { id: "anthropic", name: "Anthropic", authenticated: false },
+        { id: "github", name: "GitHub", authenticated: false },
+      ],
+    });
+
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Authentication"));
+    await waitFor(() => expect(fetchAuthStatus).toHaveBeenCalled());
+
+    expect(screen.getByText("Sign in to at least one provider to get started.")).toBeTruthy();
+    // Provider rows should still be visible
+    expect(screen.getByText("Anthropic")).toBeTruthy();
+    expect(screen.getByText("GitHub")).toBeTruthy();
+  });
+
+  it("hides sign-in hint when at least one provider is authenticated", async () => {
+    (fetchAuthStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      providers: [
+        { id: "anthropic", name: "Anthropic", authenticated: true },
+        { id: "github", name: "GitHub", authenticated: false },
+      ],
+    });
+
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Authentication"));
+    await waitFor(() => expect(fetchAuthStatus).toHaveBeenCalled());
+
+    expect(screen.queryByText("Sign in to at least one provider to get started.")).toBeNull();
+    // Provider rows should still be visible
+    expect(screen.getByText("Anthropic")).toBeTruthy();
+    expect(screen.getByText("GitHub")).toBeTruthy();
+  });
 });

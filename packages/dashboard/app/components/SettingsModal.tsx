@@ -457,7 +457,13 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
                 No OAuth providers available
               </div>
             ) : (
-              authProviders.map((provider) => (
+              <>
+              {!authProviders.some(p => p.authenticated) && (
+                <div className="settings-empty-state settings-muted">
+                  Sign in to at least one provider to get started.
+                </div>
+              )}
+              {authProviders.map((provider) => (
                 <div key={provider.id} className="auth-provider-row">
                   <div className="auth-provider-info">
                     <strong>{provider.name}</strong>
@@ -490,7 +496,8 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
                     )}
                   </div>
                 </div>
-              ))
+              ))}
+              </>
             )}
             <small className="auth-hint">
               Login and logout take effect immediately — no need to save.
