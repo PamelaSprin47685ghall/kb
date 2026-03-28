@@ -197,13 +197,14 @@ export function InlineCreateCard({ tasks, onSubmit, onCancel, addToast }: Inline
           </button>
           {showDeps && (() => {
             const term = depSearch.toLowerCase();
-            const filtered = term
+            const filtered = (term
               ? tasks.filter((t) =>
                   t.id.toLowerCase().includes(term) ||
                   (t.title && t.title.toLowerCase().includes(term)) ||
                   (t.description && t.description.toLowerCase().includes(term))
                 )
-              : tasks;
+              : [...tasks]
+            ).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
             return (
               <div className="dep-dropdown" onMouseDown={(e) => e.preventDefault()}>
                 <input

@@ -104,6 +104,35 @@ describe("InlineCreateCard dep-dropdown focus retention", () => {
   });
 });
 
+describe("InlineCreateCard dependency dropdown sort order", () => {
+  const scrambledTasks: Task[] = [
+    { id: "KB-001", title: "Oldest", description: "First", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+    { id: "KB-003", title: "Newest", description: "Third", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-03-01T00:00:00Z", updatedAt: "2026-03-01T00:00:00Z" },
+    { id: "KB-002", title: "Middle", description: "Second", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-02-01T00:00:00Z" },
+  ];
+
+  it("renders dependency dropdown items sorted newest-first by createdAt", () => {
+    renderCard(scrambledTasks);
+    fireEvent.click(screen.getByText(/Deps/));
+    const items = document.querySelectorAll(".dep-dropdown-item");
+    expect(items).toHaveLength(3);
+    const ids = Array.from(items).map((el) => el.querySelector(".dep-dropdown-id")?.textContent);
+    expect(ids).toEqual(["KB-003", "KB-002", "KB-001"]);
+  });
+
+  it("preserves newest-first sort order when a search filter is applied", () => {
+    renderCard(scrambledTasks);
+    fireEvent.click(screen.getByText(/Deps/));
+    const input = document.querySelector(".dep-dropdown-search") as HTMLInputElement;
+    // All three tasks match "KB-00" so we can verify order with a filter active
+    fireEvent.change(input, { target: { value: "KB-00" } });
+    const items = document.querySelectorAll(".dep-dropdown-item");
+    expect(items).toHaveLength(3);
+    const ids = Array.from(items).map((el) => el.querySelector(".dep-dropdown-id")?.textContent);
+    expect(ids).toEqual(["KB-003", "KB-002", "KB-001"]);
+  });
+});
+
 describe("InlineCreateCard dependency dropdown search", () => {
   const testTasks: Task[] = [
     { id: "KB-001", title: "Fix login", description: "Login page broken", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
