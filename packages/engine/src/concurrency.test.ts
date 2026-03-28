@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { AgentSemaphore } from "./concurrency.js";
+import { AgentSemaphore, PRIORITY_MERGE, PRIORITY_EXECUTE, PRIORITY_SPECIFY } from "./concurrency.js";
 
 describe("AgentSemaphore", () => {
   it("allows immediate acquire when under limit", async () => {
@@ -242,5 +242,142 @@ describe("AgentSemaphore", () => {
     }
 
     expect(ran).toBe(true);
+  });
+
+  // ── Priority scheduling tests ──────────────────────────────────────
+
+  it("priority: highest-priority waiter is served first when slot is released", async () => {
+    const sem = new AgentSemaphore(1);
+    await sem.acquire(); // fill the single slot
+
+    const order: string[] = [];
+
+    // Queue three waiters in non-priority order: specify, merge, execute
+    const pSpecify = sem.acquire(PRIORITY_SPECIFY).then(() => order.push("specify"));
+    const pMerge = sem.acquire(PRIORITY_MERGE).then(() => order.push("merge"));
+    const pExecute = sem.acquire(PRIORITY_EXECUTE).then(() => order.push("execute"));
+
+    // Release slots one at a time and observe drain order
+    sem.release();
+    await pMerge;
+    expect(order).toEqual(["merge"]);
+
+    sem.release();
+    await pExecute;
+    expect(order).toEqual(["merge", "execute"]);
+
+    sem.release();
+    await pSpecify;
+    expect(order).toEqual(["merge", "execute", "specify"]);
+
+    sem.release(); // cleanup
+    expect(sem.activeCount).toBe(0);
+  });
+
+  it("priority: FIFO order is preserved among equal-priority waiters", async () => {
+    const sem = new AgentSemaphore(1);
+    await sem.acquire(); // fill the slot
+
+    const order: number[] = [];
+
+    const p1 = sem.acquire(PRIORITY_EXECUTE).then(() => order.push(1));
+    const p2 = sem.acquire(PRIORITY_EXECUTE).then(() => order.push(2));
+    const p3 = sem.acquire(PRIORITY_EXECUTE).then(() => order.push(3));
+
+    sem.release();
+    await p1;
+    sem.release();
+    await p2;
+    sem.release();
+    await p3;
+
+    expect(order).toEqual([1, 2, 3]);
+    sem.release();
+  });
+
+  it("priority: run() forwards priority to acquire()", async () => {
+    const sem = new AgentSemaphore(1);
+    await sem.acquire(); // fill the slot
+
+    const order: string[] = [];
+
+    const pLow = sem.run(async () => { order.push("low"); }, PRIORITY_SPECIFY);
+    const pHigh = sem.run(async () => { order.push("high"); }, PRIORITY_MERGE);
+
+    // Release — high priority should go first, then its run() releases the
+    // slot automatically, allowing the low-priority waiter to proceed.
+    sem.release();
+    await pHigh;
+    await pLow;
+    expect(order).toEqual(["high", "low"]);
+    expect(sem.activeCount).toBe(0);
+  });
+
+  it("priority: mixed-priority integration — 1 slot, arbitrary enqueue order, correct drain", async () => {
+    const sem = new AgentSemaphore(1);
+    await sem.acquire(); // hold the single slot
+
+    const order: string[] = [];
+
+    // Enqueue in a scrambled order: execute, specify, merge, specify, execute, merge
+    const promises = [
+      sem.acquire(PRIORITY_EXECUTE).then(() => { order.push("execute-1"); }),
+      sem.acquire(PRIORITY_SPECIFY).then(() => { order.push("specify-1"); }),
+      sem.acquire(PRIORITY_MERGE).then(() => { order.push("merge-1"); }),
+      sem.acquire(PRIORITY_SPECIFY).then(() => { order.push("specify-2"); }),
+      sem.acquire(PRIORITY_EXECUTE).then(() => { order.push("execute-2"); }),
+      sem.acquire(PRIORITY_MERGE).then(() => { order.push("merge-2"); }),
+    ];
+
+    // Expected drain order:
+    // merge-1, merge-2 (highest, FIFO within),
+    // execute-1, execute-2 (middle, FIFO within),
+    // specify-1, specify-2 (lowest, FIFO within)
+    for (let i = 0; i < 6; i++) {
+      sem.release();
+      // Wait for the next promise to settle
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+
+    await Promise.all(promises);
+
+    expect(order).toEqual([
+      "merge-1", "merge-2",
+      "execute-1", "execute-2",
+      "specify-1", "specify-2",
+    ]);
+
+    sem.release(); // cleanup
+    expect(sem.activeCount).toBe(0);
+  });
+
+  it("priority constants have correct values", () => {
+    expect(PRIORITY_MERGE).toBe(2);
+    expect(PRIORITY_EXECUTE).toBe(1);
+    expect(PRIORITY_SPECIFY).toBe(0);
+    expect(PRIORITY_MERGE).toBeGreaterThan(PRIORITY_EXECUTE);
+    expect(PRIORITY_EXECUTE).toBeGreaterThan(PRIORITY_SPECIFY);
+  });
+
+  it("priority: default priority (no argument) behaves as PRIORITY_SPECIFY (0)", async () => {
+    const sem = new AgentSemaphore(1);
+    await sem.acquire(); // fill the slot
+
+    const order: string[] = [];
+
+    // acquire() with no priority arg — should be treated as 0
+    const pDefault = sem.acquire().then(() => order.push("default"));
+    const pMerge = sem.acquire(PRIORITY_MERGE).then(() => order.push("merge"));
+
+    sem.release();
+    await pMerge;
+    expect(order).toEqual(["merge"]);
+
+    sem.release();
+    await pDefault;
+    expect(order).toEqual(["merge", "default"]);
+
+    sem.release();
   });
 });

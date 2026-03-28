@@ -2,7 +2,7 @@ import { exec } from "node:child_process";
 import type { AddressInfo } from "node:net";
 import { TaskStore } from "@kb/core";
 import { createServer } from "@kb/dashboard";
-import { TriageProcessor, TaskExecutor, Scheduler, AgentSemaphore, WorktreePool, aiMergeTask } from "@kb/engine";
+import { TriageProcessor, TaskExecutor, Scheduler, AgentSemaphore, WorktreePool, aiMergeTask, PRIORITY_MERGE } from "@kb/engine";
 import { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 
 function openBrowser(url: string): void {
@@ -57,7 +57,7 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
       onAgentTool: (name) => console.log(`[merger] tool: ${name}`),
     });
 
-  const onMerge = (taskId: string) => semaphore.run(() => rawMerge(taskId));
+  const onMerge = (taskId: string) => semaphore.run(() => rawMerge(taskId), PRIORITY_MERGE);
 
   // ── Serialized auto-merge queue ─────────────────────────────────────
   //

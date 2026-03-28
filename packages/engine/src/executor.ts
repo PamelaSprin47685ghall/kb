@@ -8,7 +8,7 @@ import { Type, type Static } from "@mariozechner/pi-ai";
 import { createKbAgent } from "./pi.js";
 import { reviewStep, type ReviewVerdict } from "./reviewer.js";
 import type { ToolDefinition, AgentSession, SessionManager } from "@mariozechner/pi-coding-agent";
-import type { AgentSemaphore } from "./concurrency.js";
+import { PRIORITY_EXECUTE, type AgentSemaphore } from "./concurrency.js";
 import type { WorktreePool } from "./worktree-pool.js";
 import { AgentLogger } from "./agent-logger.js";
 import { executorLog, reviewerLog } from "./logger.js";
@@ -413,7 +413,7 @@ export class TaskExecutor {
       };
 
       if (this.options.semaphore) {
-        await this.options.semaphore.run(agentWork);
+        await this.options.semaphore.run(agentWork, PRIORITY_EXECUTE);
       } else {
         await agentWork();
       }

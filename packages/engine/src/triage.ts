@@ -3,7 +3,7 @@ import type { ImageContent } from "@mariozechner/pi-ai";
 import { Type, type Static } from "@mariozechner/pi-ai";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { createKbAgent } from "./pi.js";
-import type { AgentSemaphore } from "./concurrency.js";
+import { PRIORITY_SPECIFY, type AgentSemaphore } from "./concurrency.js";
 import { AgentLogger } from "./agent-logger.js";
 import { triageLog } from "./logger.js";
 
@@ -314,7 +314,7 @@ export class TriageProcessor {
       };
 
       if (this.options.semaphore) {
-        await this.options.semaphore.run(agentWork);
+        await this.options.semaphore.run(agentWork, PRIORITY_SPECIFY);
       } else {
         await agentWork();
       }
