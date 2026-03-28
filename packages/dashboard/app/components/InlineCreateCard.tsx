@@ -204,7 +204,13 @@ export function InlineCreateCard({ tasks, onSubmit, onCancel, addToast }: Inline
                   (t.description && t.description.toLowerCase().includes(term))
                 )
               : [...tasks]
-            ).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+            ).sort((a, b) => {
+              const cmp = b.createdAt.localeCompare(a.createdAt);
+              if (cmp !== 0) return cmp;
+              const aNum = parseInt(a.id.slice(a.id.lastIndexOf("-") + 1), 10) || 0;
+              const bNum = parseInt(b.id.slice(b.id.lastIndexOf("-") + 1), 10) || 0;
+              return bNum - aNum;
+            });
             return (
               <div className="dep-dropdown" onMouseDown={(e) => e.preventDefault()}>
                 <input

@@ -239,7 +239,13 @@ export function TaskDetailModal({
 
   const availableTasks = tasks
     .filter((t) => t.id !== task.id && !dependencies.includes(t.id))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    .sort((a, b) => {
+      const cmp = b.createdAt.localeCompare(a.createdAt);
+      if (cmp !== 0) return cmp;
+      const aNum = parseInt(a.id.slice(a.id.lastIndexOf("-") + 1), 10) || 0;
+      const bNum = parseInt(b.id.slice(b.id.lastIndexOf("-") + 1), 10) || 0;
+      return bNum - aNum;
+    });
 
   const transitions = VALID_TRANSITIONS[task.column] || [];
 

@@ -249,7 +249,13 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       }
     }
 
-    return tasks.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return tasks.sort((a, b) => {
+      const cmp = a.createdAt.localeCompare(b.createdAt);
+      if (cmp !== 0) return cmp;
+      const aNum = parseInt(a.id.slice(a.id.lastIndexOf("-") + 1), 10) || 0;
+      const bNum = parseInt(b.id.slice(b.id.lastIndexOf("-") + 1), 10) || 0;
+      return aNum - bNum;
+    });
   }
 
   async moveTask(id: string, toColumn: Column): Promise<Task> {

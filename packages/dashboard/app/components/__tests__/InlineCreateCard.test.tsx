@@ -133,6 +133,34 @@ describe("InlineCreateCard dependency dropdown sort order", () => {
   });
 });
 
+describe("InlineCreateCard dependency dropdown sort with identical timestamps", () => {
+  const sameTimeTasks: Task[] = [
+    { id: "KB-001", title: "First", description: "First task", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+    { id: "KB-002", title: "Second", description: "Second task", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+    { id: "KB-003", title: "Third", description: "Third task", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+  ];
+
+  it("renders tasks with identical createdAt sorted newest-ID-first (descending numeric ID)", () => {
+    renderCard(sameTimeTasks);
+    fireEvent.click(screen.getByText(/Deps/));
+    const items = document.querySelectorAll(".dep-dropdown-item");
+    expect(items).toHaveLength(3);
+    const ids = Array.from(items).map((el) => el.querySelector(".dep-dropdown-id")?.textContent);
+    expect(ids).toEqual(["KB-003", "KB-002", "KB-001"]);
+  });
+
+  it("preserves newest-ID-first order when search filter is applied with identical timestamps", () => {
+    renderCard(sameTimeTasks);
+    fireEvent.click(screen.getByText(/Deps/));
+    const input = document.querySelector(".dep-dropdown-search") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "KB-00" } });
+    const items = document.querySelectorAll(".dep-dropdown-item");
+    expect(items).toHaveLength(3);
+    const ids = Array.from(items).map((el) => el.querySelector(".dep-dropdown-id")?.textContent);
+    expect(ids).toEqual(["KB-003", "KB-002", "KB-001"]);
+  });
+});
+
 describe("InlineCreateCard dependency dropdown search", () => {
   const testTasks: Task[] = [
     { id: "KB-001", title: "Fix login", description: "Login page broken", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
