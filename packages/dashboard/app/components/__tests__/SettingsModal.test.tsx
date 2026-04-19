@@ -23,6 +23,7 @@ vi.mock("../../api", () => ({
   logoutProvider: vi.fn(() => Promise.resolve({ success: true })),
   fetchModels: vi.fn(() => Promise.resolve([
     { provider: "anthropic", id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", reasoning: true, contextWindow: 200000 },
+    { provider: "anthropic", id: "claude-opus-4-1", name: "Claude Opus 4.1", reasoning: true, contextWindow: 200000 },
     { provider: "openai", id: "gpt-4o", name: "GPT-4o", reasoning: false, contextWindow: 128000 },
   ])),
 }));
@@ -243,31 +244,55 @@ describe("SettingsModal", () => {
     fireEvent.click(screen.getByText("Model"));
     await waitFor(() => expect(fetchModels).toHaveBeenCalled());
 
-    expect(screen.getByLabelText("Default Model")).toBeTruthy();
+    expect(screen.getByLabelText("Default Models")).toBeTruthy();
     expect(screen.getByText("Claude Sonnet 4.5")).toBeTruthy();
+    expect(screen.getByText("Claude Opus 4.1")).toBeTruthy();
     expect(screen.getByText("GPT-4o")).toBeTruthy();
-    expect(screen.getByText("Use default")).toBeTruthy();
   });
 
-  it("selecting a model updates form with provider and model ID", async () => {
+  it("selecting multiple models under one provider stores colon-delimited IDs", async () => {
     render(<SettingsModal onClose={onClose} addToast={addToast} />);
     await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
 
     fireEvent.click(screen.getByText("Model"));
     await waitFor(() => expect(fetchModels).toHaveBeenCalled());
 
-    const select = screen.getByLabelText("Default Model") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "anthropic/claude-sonnet-4-5" } });
+    const select = screen.getByLabelText("Default Models") as HTMLSelectElement;
+    Array.from(select.options).forEach((option) => {
+      option.selected = option.value === "anthropic/claude-sonnet-4-5" || option.value === "anthropic/claude-opus-4-1";
+    });
+    fireEvent.change(select);
 
     fireEvent.click(screen.getByText("Save"));
     await waitFor(() => expect(updateSettings).toHaveBeenCalledTimes(1));
 
     const payload = (updateSettings as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(payload.defaultProvider).toBe("anthropic");
-    expect(payload.defaultModelId).toBe("claude-sonnet-4-5");
+    expect(payload.defaultModelId).toBe("claude-sonnet-4-5:claude-opus-4-1");
   });
 
-  it("Use default option clears model selection", async () => {
+  it("selecting models across providers stores provider/model entries and clears defaultProvider", async () => {
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Model"));
+    await waitFor(() => expect(fetchModels).toHaveBeenCalled());
+
+    const select = screen.getByLabelText("Default Models") as HTMLSelectElement;
+    Array.from(select.options).forEach((option) => {
+      option.selected = option.value === "anthropic/claude-sonnet-4-5" || option.value === "openai/gpt-4o";
+    });
+    fireEvent.change(select);
+
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => expect(updateSettings).toHaveBeenCalledTimes(1));
+
+    const payload = (updateSettings as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(payload.defaultProvider).toBeUndefined();
+    expect(payload.defaultModelId).toBe("anthropic/claude-sonnet-4-5:openai/gpt-4o");
+  });
+
+  it("clearing all selections clears model settings", async () => {
     (fetchSettings as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ...defaultSettings,
       defaultProvider: "anthropic",
@@ -280,8 +305,11 @@ describe("SettingsModal", () => {
     fireEvent.click(screen.getByText("Model"));
     await waitFor(() => expect(fetchModels).toHaveBeenCalled());
 
-    const select = screen.getByLabelText("Default Model") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "" } });
+    const select = screen.getByLabelText("Default Models") as HTMLSelectElement;
+    Array.from(select.options).forEach((option) => {
+      option.selected = false;
+    });
+    fireEvent.change(select);
 
     fireEvent.click(screen.getByText("Save"));
     await waitFor(() => expect(updateSettings).toHaveBeenCalledTimes(1));
@@ -407,15 +435,16 @@ describe("SettingsModal", () => {
     expect(providerRow).toBeTruthy();
   });
 
-  it("model section renders select element", async () => {
+  it("model section renders multi-select element", async () => {
     render(<SettingsModal onClose={onClose} addToast={addToast} />);
     await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
 
     fireEvent.click(screen.getByText("Model"));
     await waitFor(() => expect(fetchModels).toHaveBeenCalled());
 
-    const select = screen.getByLabelText("Default Model") as HTMLSelectElement;
+    const select = screen.getByLabelText("Default Models") as HTMLSelectElement;
     expect(select.tagName).toBe("SELECT");
+    expect(select.multiple).toBe(true);
   });
 
   it("checkbox labels use checkbox-label class", async () => {

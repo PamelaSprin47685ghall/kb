@@ -142,8 +142,11 @@ export interface Settings {
    *  the engine uses pi's automatic model resolution. */
   defaultProvider?: string;
   /** Default AI model ID within the provider (e.g. `"claude-sonnet-4-5"`).
-   *  Must be set together with `defaultProvider`. When both are undefined,
-   *  the engine uses pi's automatic model resolution. */
+   *  Supports a colon-delimited list for random per-session selection
+   *  (e.g. `"claude-sonnet-4-5:claude-opus-4-1"`), and can also store
+   *  provider/model entries (e.g. `"anthropic/claude-sonnet-4-5:openai/gpt-4o"`).
+   *  When both model and provider are undefined, the engine uses pi's
+   *  automatic model resolution. */
   defaultModelId?: string;
   /** Default thinking effort level for AI agent sessions.
    *  Controls how much reasoning effort the model uses — higher levels

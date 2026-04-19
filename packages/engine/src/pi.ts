@@ -33,10 +33,31 @@ export interface AgentOptions {
   onToolEnd?: (name: string, isError: boolean, result?: unknown) => void;
   /** Default model provider (e.g. "anthropic"). Used with `defaultModelId` to select a specific model. */
   defaultProvider?: string;
-  /** Default model ID within the provider (e.g. "claude-sonnet-4-5"). Used with `defaultProvider`. */
+  /** Default model ID(s). Supports colon-delimited IDs and provider/model entries for random model selection. */
   defaultModelId?: string;
   /** Default thinking effort level (e.g. "medium", "high"). When provided, sets the session's thinking level after creation. */
   defaultThinkingLevel?: string;
+}
+
+function resolveScopedModelSelections(defaultProvider?: string, defaultModelId?: string): Array<{ provider: string; modelId: string }> {
+  if (!defaultModelId) return [];
+
+  return defaultModelId
+    .split(":")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      if (entry.includes("/")) {
+        const slashIdx = entry.indexOf("/");
+        const provider = entry.slice(0, slashIdx).trim();
+        const modelId = entry.slice(slashIdx + 1).trim();
+        if (!provider || !modelId) return undefined;
+        return { provider, modelId };
+      }
+      if (!defaultProvider) return undefined;
+      return { provider: defaultProvider, modelId: entry };
+    })
+    .filter((selection): selection is { provider: string; modelId: string } => !!selection);
 }
 
 /**
@@ -52,14 +73,19 @@ export async function createKbAgent(options: AgentOptions): Promise<AgentResult>
       ? createReadOnlyTools(options.cwd)
       : createCodingTools(options.cwd);
 
-  const settingsManager = SettingsManager.inMemory({
+  // Load user's existing pi settings so configured plugins/extensions are preserved.
+  const settingsManager = SettingsManager.create(options.cwd);
+  settingsManager.applyOverrides({
     compaction: { enabled: true },
     retry: { enabled: true, maxRetries: 3 },
   });
 
-  // Resolve explicit model selection if provider and model ID are specified
-  const selectedModel = options.defaultProvider && options.defaultModelId
-    ? modelRegistry.find(options.defaultProvider, options.defaultModelId)
+  const modelSelections = resolveScopedModelSelections(options.defaultProvider, options.defaultModelId);
+  const candidateModels = modelSelections
+    .map((selection) => modelRegistry.find(selection.provider, selection.modelId))
+    .filter((model): model is NonNullable<typeof model> => !!model);
+  const selectedModel = candidateModels.length > 0
+    ? candidateModels[Math.floor(Math.random() * candidateModels.length)]
     : undefined;
 
   const resourceLoader = new DefaultResourceLoader({
