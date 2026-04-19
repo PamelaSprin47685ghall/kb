@@ -41,27 +41,18 @@ interface SettingsModalProps {
   initialSection?: SectionId;
 }
 
-function parseSelectedModelValues(defaultProvider?: string, defaultModelId?: string): string[] {
+// Parse stored model string into array of "provider/modelId" values
+function parseStoredModels(defaultModelId?: string): string[] {
   if (!defaultModelId) return [];
   return defaultModelId
     .split(":")
     .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => {
-      // If entry already has provider (contains /), use as-is
-      if (entry.includes("/")) return entry;
-      // If no provider in entry and we have a defaultProvider, prepend it
-      if (defaultProvider) return `${defaultProvider}/${entry}`;
-      // Otherwise skip this entry (invalid format)
-      return "";
-    })
     .filter(Boolean);
 }
 
-function parseModelValue(value: string): { provider: string; modelId: string } | undefined {
-  const slashIdx = value.indexOf("/");
-  if (slashIdx <= 0 || slashIdx >= value.length - 1) return undefined;
-  return { provider: value.slice(0, slashIdx), modelId: value.slice(slashIdx + 1) };
+// Format selected models back to storage format (colon-separated)
+function formatModelsForStorage(selectedModels: string[]): string {
+  return selectedModels.join(":");
 }
 
 export function SettingsModal({ onClose, addToast, initialSection }: SettingsModalProps) {
@@ -234,7 +225,7 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
           (acc[m.provider] ??= []).push(m);
           return acc;
         }, {});
-        const selectedValues = parseSelectedModelValues(form.defaultProvider, form.defaultModelId);
+        const selectedModels = parseStoredModels(form.defaultModelId);
         return (
           <>
             <h4 className="settings-section-heading">Model</h4>
@@ -250,26 +241,16 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
                 <select
                   id="defaultModel"
                   multiple
-                  value={selectedValues}
+                  value={selectedModels}
                   onChange={(e) => {
-                    const values = Array.from(e.currentTarget.selectedOptions).map((option) => option.value);
-                    if (values.length === 0) {
+                    const selected = Array.from(e.currentTarget.selectedOptions).map((option) => option.value);
+                    if (selected.length === 0) {
                       setForm((f) => ({ ...f, defaultProvider: undefined, defaultModelId: undefined }));
                     } else {
-                      const parsed = values
-                        .map((value) => parseModelValue(value))
-                        .filter((value): value is { provider: string; modelId: string } => !!value);
-                      if (parsed.length === 0) {
-                        setForm((f) => ({ ...f, defaultProvider: undefined, defaultModelId: undefined }));
-                        return;
-                      }
-                      const uniqueProviders = [...new Set(parsed.map((value) => value.provider))];
                       setForm((f) => ({
                         ...f,
-                        defaultProvider: uniqueProviders.length === 1 ? uniqueProviders[0] : undefined,
-                        defaultModelId: uniqueProviders.length === 1
-                          ? parsed.map((value) => value.modelId).join(":")
-                          : parsed.map((value) => `${value.provider}/${value.modelId}`).join(":"),
+                        defaultProvider: undefined,
+                        defaultModelId: formatModelsForStorage(selected),
                       }));
                     }
                   }}
@@ -288,12 +269,14 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
               </div>
             )}
             {(() => {
-              const selectedModels = selectedValues
-                .map((value) => parseModelValue(value))
-                .filter((value): value is { provider: string; modelId: string } => !!value)
-                .map((selected) => availableModels.find((m) => m.provider === selected.provider && m.id === selected.modelId))
+              const selectedModelInfos = selectedModels
+                .map((fullId) => {
+                  const [provider, ...idParts] = fullId.split("/");
+                  const modelId = idParts.join("/");
+                  return availableModels.find((m) => m.provider === provider && m.id === modelId);
+                })
                 .filter((model): model is ModelInfo => !!model);
-              if (selectedModels.some((model) => !model.reasoning)) return null;
+              if (selectedModelInfos.length === 0 || selectedModelInfos.some((model) => !model.reasoning)) return null;
               return (
                 <div className="form-group">
                   <label htmlFor="defaultThinkingLevel">Thinking Effort</label>
