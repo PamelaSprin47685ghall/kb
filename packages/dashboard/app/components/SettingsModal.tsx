@@ -242,9 +242,12 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
                 <select
                   id="defaultModel"
                   multiple
+                  size={10}
                   value={selectedModels}
                   onChange={(e) => {
                     const selected = Array.from(e.currentTarget.selectedOptions).map((option) => option.value);
+                    console.log('Multi-select onChange:', selected);
+                    console.log('Current selectedModels state:', selectedModels);
                     setSelectedModels(selected);
                     if (selected.length === 0) {
                       setForm((f) => ({ ...f, defaultProvider: undefined, defaultModelId: undefined }));
