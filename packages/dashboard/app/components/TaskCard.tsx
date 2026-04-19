@@ -154,7 +154,7 @@ export function TaskCard({ task, queued, onOpenDetail, addToast, globalPaused }:
         <div className="card-meta">
           {(task.dependencies?.length ?? 0) > 0 && (
             <span className="card-dep-badge" data-tooltip={task.dependencies?.join(", ") ?? ""}>
-              <Link size={12} style={{ verticalAlign: 'middle' }} /> {task.dependencies!.length} dep{task.dependencies!.length > 1 ? "s" : ""}
+              <Link size={12} style={{ verticalAlign: 'middle' }} /> {task.dependencies?.length ?? 0} dep{(task.dependencies?.length ?? 0) > 1 ? "s" : ""}
             </span>
           )}
           {task.blockedBy && (
