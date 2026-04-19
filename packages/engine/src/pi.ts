@@ -11,12 +11,14 @@ import {
   createCodingTools,
   createReadOnlyTools,
   DefaultResourceLoader,
+  getAgentDir,
   ModelRegistry,
   SessionManager,
   SettingsManager,
   type AgentSession,
   type ToolDefinition,
 } from "@mariozechner/pi-coding-agent";
+import { join } from "node:path";
 
 export interface AgentResult {
   session: AgentSession;
@@ -65,8 +67,9 @@ function parseModelSelections(defaultProvider?: string, defaultModelId?: string)
  * Reuses the user's existing pi auth and model configuration.
  */
 export async function createKbAgent(options: AgentOptions): Promise<AgentResult> {
-  const authStorage = AuthStorage.create();
-  const modelRegistry = new ModelRegistry(authStorage);
+  const agentDir = getAgentDir();
+  const authStorage = AuthStorage.create(join(agentDir, "auth.json"));
+  const modelRegistry = new ModelRegistry(authStorage, join(agentDir, "models.json"));
 
   const tools =
     options.tools === "readonly"
@@ -74,7 +77,7 @@ export async function createKbAgent(options: AgentOptions): Promise<AgentResult>
       : createCodingTools(options.cwd);
 
   // Load user's existing pi settings so configured plugins/extensions are preserved.
-  const settingsManager = SettingsManager.create(options.cwd);
+  const settingsManager = SettingsManager.create(options.cwd, agentDir);
   settingsManager.applyOverrides({
     compaction: { enabled: true },
     retry: { enabled: true, maxRetries: 3 },
