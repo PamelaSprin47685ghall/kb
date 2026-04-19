@@ -683,6 +683,29 @@ body {
   padding: 4px 8px;
 }
 
+/* === Multi-select Styling === */
+.form-group select[multiple] {
+  height: auto;
+  min-height: 120px;
+  padding: 8px;
+  background-image: none;
+  cursor: default;
+}
+.form-group select[multiple] option {
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin-bottom: 2px;
+  cursor: pointer;
+}
+.form-group select[multiple] option:hover {
+  background: var(--bg-hover);
+}
+.form-group select[multiple] option:checked {
+  background: var(--todo);
+  color: white;
+  font-weight: 500;
+}
+
 /* === Helper Text & Field Errors === */
 .form-group small {
   display: block;
