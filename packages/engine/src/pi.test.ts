@@ -107,11 +107,12 @@ describe("createKbAgent", () => {
   });
 
   it("falls back to legacy ~/.pi paths when only legacy files exist", async () => {
-    mocks.existsSync.mockImplementation((path: string) => (
-      path === "/home/test/.pi/auth.json"
-      || path === "/home/test/.pi/models.json"
-      || path === "/home/test/.pi/settings.json"
-    ));
+    const legacyPaths = new Set([
+      "/home/test/.pi/auth.json",
+      "/home/test/.pi/models.json",
+      "/home/test/.pi/settings.json",
+    ]);
+    mocks.existsSync.mockImplementation((path: unknown) => typeof path === "string" && legacyPaths.has(path));
 
     await createKbAgent({ cwd: "/tmp/worktree", systemPrompt: "system" });
 
