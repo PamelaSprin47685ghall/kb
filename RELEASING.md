@@ -22,21 +22,20 @@ This will prompt you to:
 
 A markdown file will be created in the `.changeset/` directory. Commit this file along with your code changes.
 
-### 2. Version PR is created automatically
+### 2. Version commit is created automatically
 
-When changesets are merged to `main`, the `version.yml` workflow automatically opens (or updates) a **"Version Packages"** pull request. This PR:
+When changesets are merged to `main`, the `version.yml` workflow:
 
 - Consumes all pending changeset files
 - Bumps package versions according to the changeset declarations
 - Generates/updates `CHANGELOG.md` files for affected packages
+- Commits those changes back to `main` as **"Version Packages"**
 
-### 3. Merge the Version PR to release
+### 3. Publish run after version commit
 
-When you merge the Version Packages PR:
+When the auto-generated **"Version Packages"** commit lands on `main`, the next `version.yml` run:
 
-- The `version.yml` workflow detects that all changesets have been consumed
-- It builds all packages and publishes them to **npm** with provenance attestation
-- It creates a git tag `v{version}` based on the `kb` CLI package version
+- Builds all packages and publishes them to **npm** with provenance attestation
 - The tag push triggers `release.yml`, which:
   - Builds platform-specific binaries for Linux x64, macOS x64, macOS arm64, and Windows x64
   - Signs macOS binaries (codesign + notarization) and Windows binaries (Authenticode)
@@ -47,7 +46,7 @@ When you merge the Version Packages PR:
 
 | Channel | Workflow | Trigger | Output |
 |---------|----------|---------|--------|
-| npm | `version.yml` | Push to `main` | npm packages with provenance |
+| npm | `version.yml` | Push to `main` | Version commit + npm packages with provenance |
 | GitHub Release | `release.yml` | Version tag (`v*`) | Signed platform binaries + checksums |
 
 ## Platform binaries

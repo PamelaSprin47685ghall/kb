@@ -39,7 +39,8 @@ describe("Changeset configuration", () => {
     expect(existsSync(workflowPath)).toBe(true);
 
     const content = readFileSync(workflowPath, "utf-8");
-    expect(content).toContain("changesets/action");
+    expect(content).toContain("Detect pending changesets");
+    expect(content).toContain("pnpm release:version");
     expect(content).toContain("push");
     expect(content).toContain("main");
   });

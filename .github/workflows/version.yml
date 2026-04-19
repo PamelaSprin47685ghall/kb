@@ -43,11 +43,35 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Create Release Pull Request or Publish to npm
-        uses: changesets/action@v1
-        with:
-          version: pnpm release:version
-          publish: pnpm -r publish --provenance --access public
+      - name: Detect pending changesets
+        id: changesets
+        run: |
+          count=$(find .changeset -maxdepth 1 -name '*.md' ! -name 'README.md' | wc -l | tr -d ' ')
+          if [ "$count" -gt 0 ]; then
+            echo "has_changesets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changesets=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Version packages
+        if: steps.changesets.outputs.has_changesets == 'true'
+        run: pnpm release:version
+
+      - name: Commit version changes
+        if: steps.changesets.outputs.has_changesets == 'true'
+        run: |
+          if git diff --quiet; then
+            echo "No version changes generated."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Version Packages"
+          git push origin HEAD:main
+
+      - name: Publish to npm
+        if: steps.changesets.outputs.has_changesets == 'false' && github.event.head_commit.message == 'Version Packages'
+        run: pnpm changeset publish --provenance --access public
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true

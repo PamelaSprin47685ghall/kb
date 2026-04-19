@@ -86,12 +86,13 @@ describe("Version & Release workflow (.github/workflows/version.yml)", () => {
     expect(content).toContain("pnpm build");
   });
 
-  it("uses changesets/action", () => {
-    expect(content).toContain("changesets/action");
+  it("detects changesets and versions directly in workflow", () => {
+    expect(content).toContain("Detect pending changesets");
+    expect(content).toContain("pnpm release:version");
   });
 
   it("has publish command for npm", () => {
-    expect(content).toContain("pnpm -r publish");
+    expect(content).toContain("pnpm changeset publish");
   });
 
   it("uses OIDC publishing (no NPM_TOKEN secret)", () => {
