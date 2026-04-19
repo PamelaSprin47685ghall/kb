@@ -18,7 +18,8 @@ import {
   type AgentSession,
   type ToolDefinition,
 } from "@mariozechner/pi-coding-agent";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 export interface AgentResult {
   session: AgentSession;
@@ -62,14 +63,36 @@ function parseModelSelections(defaultProvider?: string, defaultModelId?: string)
     .filter((selection): selection is { provider: string; modelId: string } => !!selection);
 }
 
+function resolveAgentFilePath(agentDir: string, filename: string): string {
+  const preferred = join(agentDir, filename);
+  const legacy = join(dirname(agentDir), filename);
+  if (!existsSync(preferred) && existsSync(legacy)) {
+    return legacy;
+  }
+  return preferred;
+}
+
+function resolveSettingsAgentDir(agentDir: string): string {
+  const preferredSettings = join(agentDir, "settings.json");
+  const legacyAgentDir = dirname(agentDir);
+  const legacySettings = join(legacyAgentDir, "settings.json");
+  if (!existsSync(preferredSettings) && existsSync(legacySettings)) {
+    return legacyAgentDir;
+  }
+  return agentDir;
+}
+
 /**
  * Create a pi agent session configured for kb.
  * Reuses the user's existing pi auth and model configuration.
  */
 export async function createKbAgent(options: AgentOptions): Promise<AgentResult> {
   const agentDir = getAgentDir();
-  const authStorage = AuthStorage.create(join(agentDir, "auth.json"));
-  const modelRegistry = new ModelRegistry(authStorage, join(agentDir, "models.json"));
+  const authPath = resolveAgentFilePath(agentDir, "auth.json");
+  const modelsPath = resolveAgentFilePath(agentDir, "models.json");
+  const settingsAgentDir = resolveSettingsAgentDir(agentDir);
+  const authStorage = AuthStorage.create(authPath);
+  const modelRegistry = new ModelRegistry(authStorage, modelsPath);
 
   const tools =
     options.tools === "readonly"
@@ -77,7 +100,7 @@ export async function createKbAgent(options: AgentOptions): Promise<AgentResult>
       : createCodingTools(options.cwd);
 
   // Load user's existing pi settings so configured plugins/extensions are preserved.
-  const settingsManager = SettingsManager.create(options.cwd, agentDir);
+  const settingsManager = SettingsManager.create(options.cwd, settingsAgentDir);
   settingsManager.applyOverrides({
     compaction: { enabled: true },
     retry: { enabled: true, maxRetries: 3 },

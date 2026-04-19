@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   createCodingTools: vi.fn(() => []),
   createReadOnlyTools: vi.fn(() => []),
   authStorageCreate: vi.fn(() => ({ kind: "auth" })),
+  existsSync: vi.fn(() => false),
   getAgentDir: vi.fn(() => "/home/test/.pi/agent"),
   modelRegistryCtor: vi.fn(),
   sessionManagerInMemory: vi.fn(() => ({ kind: "session-manager" })),
@@ -27,6 +28,9 @@ vi.mock("@mariozechner/pi-coding-agent", () => ({
   SessionManager: { inMemory: mocks.sessionManagerInMemory },
   SettingsManager: { create: mocks.settingsManagerCreate, inMemory: mocks.settingsManagerInMemory },
 }));
+vi.mock("node:fs", () => ({
+  existsSync: mocks.existsSync,
+}));
 
 import { createKbAgent } from "./pi.js";
 
@@ -43,6 +47,7 @@ describe("createKbAgent", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
+    mocks.existsSync.mockImplementation(() => false);
     mocks.modelRegistryCtor.mockImplementation(function MockModelRegistry() {
       return { find: mocks.modelFind };
     });
@@ -99,5 +104,23 @@ describe("createKbAgent", () => {
     expect(mocks.modelFind).toHaveBeenCalledWith("openai", "gpt-4o");
     const options = mocks.createAgentSession.mock.calls[0]?.[0];
     expect(options.model).toEqual({ provider: "anthropic", id: "claude-sonnet-4-5" });
+  });
+
+  it("falls back to legacy ~/.pi paths when only legacy files exist", async () => {
+    const legacyPaths = new Set([
+      "/home/test/.pi/auth.json",
+      "/home/test/.pi/models.json",
+      "/home/test/.pi/settings.json",
+    ]);
+    mocks.existsSync.mockImplementation((path: unknown) => typeof path === "string" && legacyPaths.has(path));
+
+    await createKbAgent({ cwd: "/tmp/worktree", systemPrompt: "system" });
+
+    expect(mocks.authStorageCreate).toHaveBeenCalledWith("/home/test/.pi/auth.json");
+    expect(mocks.modelRegistryCtor).toHaveBeenCalledWith(
+      mocks.authStorageCreate.mock.results[0]?.value,
+      "/home/test/.pi/models.json",
+    );
+    expect(mocks.settingsManagerCreate).toHaveBeenCalledWith("/tmp/worktree", "/home/test/.pi");
   });
 });
