@@ -35,6 +35,8 @@ export function Board({ tasks, maxConcurrent, onMoveTask, onOpenDetail, addToast
               }
               if (a.columnMovedAt && !b.columnMovedAt) return -1;
               if (!a.columnMovedAt && b.columnMovedAt) return 1;
+              // Handle missing createdAt (shouldn't happen but defensive)
+              if (!a.createdAt || !b.createdAt) return 0;
               return a.createdAt.localeCompare(b.createdAt);
             })}
           allTasks={tasks}

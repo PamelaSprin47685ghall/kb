@@ -205,8 +205,11 @@ export function InlineCreateCard({ tasks, onSubmit, onCancel, addToast }: Inline
                 )
               : [...tasks]
             ).sort((a, b) => {
-              const cmp = b.createdAt.localeCompare(a.createdAt);
-              if (cmp !== 0) return cmp;
+              // Handle missing createdAt (shouldn't happen but defensive)
+              if (b.createdAt && a.createdAt) {
+                const cmp = b.createdAt.localeCompare(a.createdAt);
+                if (cmp !== 0) return cmp;
+              }
               const aNum = parseInt(a.id.slice(a.id.lastIndexOf("-") + 1), 10) || 0;
               const bNum = parseInt(b.id.slice(b.id.lastIndexOf("-") + 1), 10) || 0;
               return bNum - aNum;
