@@ -47,7 +47,7 @@ describe("createKbAgent", () => {
     mocks.modelFind.mockImplementation((provider: string, id: string) => ({ provider, id }));
   });
 
-  it("uses SettingsManager.create so user plugin/extension settings are preserved", async () => {
+  it("uses SettingsManager.create so user plugins/extensions settings are preserved", async () => {
     await createKbAgent({ cwd: "/tmp/worktree", systemPrompt: "system" });
 
     expect(mocks.settingsManagerCreate).toHaveBeenCalledWith("/tmp/worktree");

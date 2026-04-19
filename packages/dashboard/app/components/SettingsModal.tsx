@@ -277,7 +277,7 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
                     </optgroup>
                   ))}
                 </select>
-                <small>Select one or more models. The engine randomly picks one per agent session. Leave all unselected to use pi defaults.</small>
+                <small>Select one or more models. The engine randomly picks one per agent session. Leave all unselected to use pi automatic model defaults.</small>
               </div>
             )}
             {(() => {
