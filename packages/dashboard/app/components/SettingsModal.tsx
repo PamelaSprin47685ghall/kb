@@ -51,6 +51,12 @@ function parseSelectedModelValues(defaultProvider?: string, defaultModelId?: str
     .filter(Boolean);
 }
 
+function parseModelValue(value: string): { provider: string; modelId: string } | undefined {
+  const slashIdx = value.indexOf("/");
+  if (slashIdx <= 0 || slashIdx >= value.length - 1) return undefined;
+  return { provider: value.slice(0, slashIdx), modelId: value.slice(slashIdx + 1) };
+}
+
 export function SettingsModal({ onClose, addToast, initialSection }: SettingsModalProps) {
   const [form, setForm] = useState<Settings & { worktreeInitCommand?: string }>({ maxConcurrent: 2, maxWorktrees: 4, pollIntervalMs: 15000, groupOverlappingFiles: false, autoMerge: true, recycleWorktrees: false, includeTaskIdInCommit: true, worktreeInitCommand: "" });
   const [loading, setLoading] = useState(true);
@@ -244,11 +250,7 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
                       setForm((f) => ({ ...f, defaultProvider: undefined, defaultModelId: undefined }));
                     } else {
                       const parsed = values
-                        .map((value) => {
-                          const slashIdx = value.indexOf("/");
-                          if (slashIdx <= 0 || slashIdx >= value.length - 1) return undefined;
-                          return { provider: value.slice(0, slashIdx), modelId: value.slice(slashIdx + 1) };
-                        })
+                        .map((value) => parseModelValue(value))
                         .filter((value): value is { provider: string; modelId: string } => !!value);
                       if (parsed.length === 0) {
                         setForm((f) => ({ ...f, defaultProvider: undefined, defaultModelId: undefined }));
@@ -280,14 +282,9 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
             )}
             {(() => {
               const selectedModels = selectedValues
-                .map((value) => {
-                  const slashIdx = value.indexOf("/");
-                  return {
-                    provider: value.slice(0, slashIdx),
-                    id: value.slice(slashIdx + 1),
-                  };
-                })
-                .map((selected) => availableModels.find((m) => m.provider === selected.provider && m.id === selected.id))
+                .map((value) => parseModelValue(value))
+                .filter((value): value is { provider: string; modelId: string } => !!value)
+                .map((selected) => availableModels.find((m) => m.provider === selected.provider && m.id === selected.modelId))
                 .filter((model): model is ModelInfo => !!model);
               if (selectedModels.some((model) => !model.reasoning)) return null;
               return (
