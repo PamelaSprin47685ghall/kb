@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   createCodingTools: vi.fn(() => []),
   createReadOnlyTools: vi.fn(() => []),
   authStorageCreate: vi.fn(() => ({ kind: "auth" })),
+  getAgentDir: vi.fn(() => "/home/test/.pi/agent"),
+  modelRegistryCtor: vi.fn(),
   sessionManagerInMemory: vi.fn(() => ({ kind: "session-manager" })),
   settingsManagerCreate: vi.fn(() => ({ applyOverrides: vi.fn() })),
   settingsManagerInMemory: vi.fn(() => ({ applyOverrides: vi.fn() })),
@@ -17,12 +19,11 @@ vi.mock("@mariozechner/pi-coding-agent", () => ({
   createAgentSession: mocks.createAgentSession,
   createCodingTools: mocks.createCodingTools,
   createReadOnlyTools: mocks.createReadOnlyTools,
+  getAgentDir: mocks.getAgentDir,
   DefaultResourceLoader: vi.fn(function MockDefaultResourceLoader() {
     return { reload: mocks.resourceReload };
   }),
-  ModelRegistry: vi.fn(function MockModelRegistry() {
-    return { find: mocks.modelFind };
-  }),
+  ModelRegistry: mocks.modelRegistryCtor,
   SessionManager: { inMemory: mocks.sessionManagerInMemory },
   SettingsManager: { create: mocks.settingsManagerCreate, inMemory: mocks.settingsManagerInMemory },
 }));
@@ -42,6 +43,9 @@ describe("createKbAgent", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
+    mocks.modelRegistryCtor.mockImplementation(function MockModelRegistry() {
+      return { find: mocks.modelFind };
+    });
     mocks.createAgentSession.mockResolvedValue({ session: mockAgentSession() });
     mocks.resourceReload.mockResolvedValue(undefined);
     mocks.modelFind.mockImplementation((provider: string, id: string) => ({ provider, id }));
@@ -50,7 +54,12 @@ describe("createKbAgent", () => {
   it("uses SettingsManager.create so user plugins/extensions settings are preserved", async () => {
     await createKbAgent({ cwd: "/tmp/worktree", systemPrompt: "system" });
 
-    expect(mocks.settingsManagerCreate).toHaveBeenCalledWith("/tmp/worktree");
+    expect(mocks.authStorageCreate).toHaveBeenCalledWith("/home/test/.pi/agent/auth.json");
+    expect(mocks.modelRegistryCtor).toHaveBeenCalledWith(
+      mocks.authStorageCreate.mock.results[0]?.value,
+      "/home/test/.pi/agent/models.json",
+    );
+    expect(mocks.settingsManagerCreate).toHaveBeenCalledWith("/tmp/worktree", "/home/test/.pi/agent");
     expect(mocks.settingsManagerInMemory).not.toHaveBeenCalled();
     const settingsManager = mocks.settingsManagerCreate.mock.results[0]?.value as { applyOverrides: ReturnType<typeof vi.fn> };
     expect(settingsManager.applyOverrides).toHaveBeenCalledWith({
