@@ -1,26 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockCreateAgentSession = vi.fn();
-const mockCreateCodingTools = vi.fn(() => []);
-const mockCreateReadOnlyTools = vi.fn(() => []);
-const mockAuthStorageCreate = vi.fn(() => ({ kind: "auth" }));
-const mockSessionManagerInMemory = vi.fn(() => ({ kind: "session-manager" }));
-const mockSettingsManagerCreate = vi.fn(() => ({ applyOverrides: vi.fn() }));
-const mockSettingsManagerInMemory = vi.fn(() => ({ applyOverrides: vi.fn() }));
-const mockResourceReload = vi.fn(async () => undefined);
-const mockDefaultResourceLoader = vi.fn(() => ({ reload: mockResourceReload }));
-const mockModelFind = vi.fn((provider: string, id: string) => ({ provider, id }));
-const mockModelRegistry = vi.fn(() => ({ find: mockModelFind }));
+const mocks = vi.hoisted(() => ({
+  createAgentSession: vi.fn(),
+  createCodingTools: vi.fn(() => []),
+  createReadOnlyTools: vi.fn(() => []),
+  authStorageCreate: vi.fn(() => ({ kind: "auth" })),
+  sessionManagerInMemory: vi.fn(() => ({ kind: "session-manager" })),
+  settingsManagerCreate: vi.fn(() => ({ applyOverrides: vi.fn() })),
+  settingsManagerInMemory: vi.fn(() => ({ applyOverrides: vi.fn() })),
+  resourceReload: vi.fn(async () => undefined),
+  modelFind: vi.fn((provider: string, id: string) => ({ provider, id })),
+}));
 
 vi.mock("@mariozechner/pi-coding-agent", () => ({
-  AuthStorage: { create: mockAuthStorageCreate },
-  createAgentSession: mockCreateAgentSession,
-  createCodingTools: mockCreateCodingTools,
-  createReadOnlyTools: mockCreateReadOnlyTools,
-  DefaultResourceLoader: mockDefaultResourceLoader,
-  ModelRegistry: mockModelRegistry,
-  SessionManager: { inMemory: mockSessionManagerInMemory },
-  SettingsManager: { create: mockSettingsManagerCreate, inMemory: mockSettingsManagerInMemory },
+  AuthStorage: { create: mocks.authStorageCreate },
+  createAgentSession: mocks.createAgentSession,
+  createCodingTools: mocks.createCodingTools,
+  createReadOnlyTools: mocks.createReadOnlyTools,
+  DefaultResourceLoader: vi.fn(function MockDefaultResourceLoader() {
+    return { reload: mocks.resourceReload };
+  }),
+  ModelRegistry: vi.fn(function MockModelRegistry() {
+    return { find: mocks.modelFind };
+  }),
+  SessionManager: { inMemory: mocks.sessionManagerInMemory },
+  SettingsManager: { create: mocks.settingsManagerCreate, inMemory: mocks.settingsManagerInMemory },
 }));
 
 import { createKbAgent } from "./pi.js";
@@ -38,17 +42,17 @@ describe("createKbAgent", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
-    mockCreateAgentSession.mockResolvedValue({ session: mockAgentSession() });
-    mockResourceReload.mockResolvedValue(undefined);
-    mockModelFind.mockImplementation((provider: string, id: string) => ({ provider, id }));
+    mocks.createAgentSession.mockResolvedValue({ session: mockAgentSession() });
+    mocks.resourceReload.mockResolvedValue(undefined);
+    mocks.modelFind.mockImplementation((provider: string, id: string) => ({ provider, id }));
   });
 
   it("uses SettingsManager.create so user plugin/extension settings are preserved", async () => {
     await createKbAgent({ cwd: "/tmp/worktree", systemPrompt: "system" });
 
-    expect(mockSettingsManagerCreate).toHaveBeenCalledWith("/tmp/worktree");
-    expect(mockSettingsManagerInMemory).not.toHaveBeenCalled();
-    const settingsManager = mockSettingsManagerCreate.mock.results[0]?.value as { applyOverrides: ReturnType<typeof vi.fn> };
+    expect(mocks.settingsManagerCreate).toHaveBeenCalledWith("/tmp/worktree");
+    expect(mocks.settingsManagerInMemory).not.toHaveBeenCalled();
+    const settingsManager = mocks.settingsManagerCreate.mock.results[0]?.value as { applyOverrides: ReturnType<typeof vi.fn> };
     expect(settingsManager.applyOverrides).toHaveBeenCalledWith({
       compaction: { enabled: true },
       retry: { enabled: true, maxRetries: 3 },
@@ -65,9 +69,9 @@ describe("createKbAgent", () => {
       defaultModelId: "claude-sonnet-4-5:claude-opus-4-1",
     });
 
-    expect(mockModelFind).toHaveBeenCalledWith("anthropic", "claude-sonnet-4-5");
-    expect(mockModelFind).toHaveBeenCalledWith("anthropic", "claude-opus-4-1");
-    const options = mockCreateAgentSession.mock.calls[0]?.[0];
+    expect(mocks.modelFind).toHaveBeenCalledWith("anthropic", "claude-sonnet-4-5");
+    expect(mocks.modelFind).toHaveBeenCalledWith("anthropic", "claude-opus-4-1");
+    const options = mocks.createAgentSession.mock.calls[0]?.[0];
     expect(options.model).toEqual({ provider: "anthropic", id: "claude-opus-4-1" });
   });
 
@@ -80,9 +84,9 @@ describe("createKbAgent", () => {
       defaultModelId: "anthropic/claude-sonnet-4-5:openai/gpt-4o",
     });
 
-    expect(mockModelFind).toHaveBeenCalledWith("anthropic", "claude-sonnet-4-5");
-    expect(mockModelFind).toHaveBeenCalledWith("openai", "gpt-4o");
-    const options = mockCreateAgentSession.mock.calls[0]?.[0];
+    expect(mocks.modelFind).toHaveBeenCalledWith("anthropic", "claude-sonnet-4-5");
+    expect(mocks.modelFind).toHaveBeenCalledWith("openai", "gpt-4o");
+    const options = mocks.createAgentSession.mock.calls[0]?.[0];
     expect(options.model).toEqual({ provider: "anthropic", id: "claude-sonnet-4-5" });
   });
 });
