@@ -238,38 +238,44 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
               </div>
             ) : (
               <div className="form-group">
-                <label htmlFor="defaultModel">Default Models</label>
-                <select
-                  id="defaultModel"
-                  multiple
-                  size={10}
-                  value={selectedModels}
-                  onChange={(e) => {
-                    const selected = Array.from(e.currentTarget.selectedOptions).map((option) => option.value);
-                    console.log('Multi-select onChange:', selected);
-                    console.log('Current selectedModels state:', selectedModels);
-                    setSelectedModels(selected);
-                    if (selected.length === 0) {
-                      setForm((f) => ({ ...f, defaultProvider: undefined, defaultModelId: undefined }));
-                    } else {
-                      setForm((f) => ({
-                        ...f,
-                        defaultProvider: undefined,
-                        defaultModelId: formatModelsForStorage(selected),
-                      }));
-                    }
-                  }}
-                >
+                <label>Default Models</label>
+                <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px' }}>
                   {Object.entries(modelsByProvider).map(([provider, models]) => (
-                    <optgroup key={provider} label={provider}>
-                      {models.map((m) => (
-                        <option key={`${m.provider}/${m.id}`} value={`${m.provider}/${m.id}`}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </optgroup>
+                    <div key={provider} style={{ marginBottom: '12px' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase' }}>{provider}</div>
+                      {models.map((m) => {
+                        const fullId = `${m.provider}/${m.id}`;
+                        const isChecked = selectedModels.includes(fullId);
+                        return (
+                          <label key={fullId} style={{ display: 'block', padding: '4px 8px', cursor: 'pointer', borderRadius: '4px' }} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const newSelected = e.target.checked
+                                  ? [...selectedModels, fullId]
+                                  : selectedModels.filter(id => id !== fullId);
+                                console.log('Checkbox onChange:', newSelected);
+                                setSelectedModels(newSelected);
+                                if (newSelected.length === 0) {
+                                  setForm((f) => ({ ...f, defaultProvider: undefined, defaultModelId: undefined }));
+                                } else {
+                                  setForm((f) => ({
+                                    ...f,
+                                    defaultProvider: undefined,
+                                    defaultModelId: formatModelsForStorage(newSelected),
+                                  }));
+                                }
+                              }}
+                              style={{ marginRight: '8px' }}
+                            />
+                            {m.name}
+                          </label>
+                        );
+                      })}
+                    </div>
                   ))}
-                </select>
+                </div>
                 <small>Select one or more models. The engine randomly picks one per agent session. Leave all unselected to use pi automatic model defaults.</small>
               </div>
             )}
