@@ -608,7 +608,7 @@ export class TriageProcessor {
         }
         const lines = active.map((t) => {
           const desc = t.title || t.description.slice(0, 80);
-          const deps = t.dependencies.length
+          const deps = t.dependencies?.length
             ? ` [deps: ${t.dependencies.join(", ")}]`
             : "";
           return `${t.id} (${t.column}): ${desc}${deps}`;
@@ -637,7 +637,7 @@ export class TriageProcessor {
             `ID: ${task.id}`,
             `Column: ${task.column}`,
             `Description: ${task.description}`,
-            task.dependencies.length
+            task.dependencies?.length
               ? `Dependencies: ${task.dependencies.join(", ")}`
               : null,
             "",
@@ -954,7 +954,7 @@ export function buildSpecificationPrompt(
 - **ID:** ${task.id}
 - **Title:** ${task.title || "(none)"}
 - **Description:** ${task.description}
-${task.dependencies.length > 0 ? `- **Dependencies:** ${task.dependencies.join(", ")}` : ""}
+${task.dependencies?.length ? `- **Dependencies:** ${task.dependencies.join(", ")}` : ""}
 
 ## Instructions
 1. Read the project structure to understand context (package.json, source files, etc.)

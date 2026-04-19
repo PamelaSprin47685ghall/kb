@@ -246,7 +246,7 @@ export class TaskExecutor {
    *    `worktreeInitCommand` if configured.
    */
   private resolveDependencyWorktree(task: Task, allTasks: Task[]): string | null {
-    if (task.dependencies.length === 0) return null;
+    if (!task.dependencies?.length) return null;
 
     for (const depId of task.dependencies) {
       const dep = allTasks.find((t) => t.id === depId);
@@ -591,7 +591,7 @@ export class TaskExecutor {
           description: params.description,
           dependencies: params.dependencies,
         });
-        const deps = task.dependencies.length ? ` (depends on: ${task.dependencies.join(", ")})` : "";
+        const deps = task.dependencies?.length ? ` (depends on: ${task.dependencies.join(", ")})` : "";
         return {
           content: [{
             type: "text" as const,
@@ -1023,7 +1023,7 @@ git log --oneline
 
 ## Task: ${task.id}
 ${task.title ? `**${task.title}**` : ""}
-${task.dependencies.length > 0 ? `Dependencies: ${task.dependencies.join(", ")}` : ""}
+${task.dependencies?.length ? `Dependencies: ${task.dependencies.join(", ")}` : ""}
 
 ## PROMPT.md
 
