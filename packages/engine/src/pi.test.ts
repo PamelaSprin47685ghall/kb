@@ -57,6 +57,8 @@ describe("createKbAgent", () => {
       compaction: { enabled: true },
       retry: { enabled: true, maxRetries: 3 },
     });
+    const options = mocks.createAgentSession.mock.calls[0]?.[0];
+    expect(options.settingsManager).toBe(settingsManager);
   });
 
   it("supports colon-delimited model IDs and picks one model at random", async () => {

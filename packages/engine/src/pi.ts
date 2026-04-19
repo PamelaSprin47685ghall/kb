@@ -39,7 +39,7 @@ export interface AgentOptions {
   defaultThinkingLevel?: string;
 }
 
-function resolveScopedModelSelections(defaultProvider?: string, defaultModelId?: string): Array<{ provider: string; modelId: string }> {
+function parseModelSelections(defaultProvider?: string, defaultModelId?: string): Array<{ provider: string; modelId: string }> {
   if (!defaultModelId) return [];
 
   return defaultModelId
@@ -80,7 +80,7 @@ export async function createKbAgent(options: AgentOptions): Promise<AgentResult>
     retry: { enabled: true, maxRetries: 3 },
   });
 
-  const modelSelections = resolveScopedModelSelections(options.defaultProvider, options.defaultModelId);
+  const modelSelections = parseModelSelections(options.defaultProvider, options.defaultModelId);
   const candidateModels = modelSelections
     .map((selection) => modelRegistry.find(selection.provider, selection.modelId))
     .filter((model): model is NonNullable<typeof model> => !!model);
