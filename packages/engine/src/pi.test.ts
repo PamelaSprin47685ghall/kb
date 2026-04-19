@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   authStorageCreate: vi.fn(() => ({ kind: "auth" })),
   existsSync: vi.fn(() => false),
   getAgentDir: vi.fn(() => "/home/test/.pi/agent"),
+  homedir: vi.fn(() => "/home/test"),
   modelRegistryCtor: vi.fn(),
   sessionManagerInMemory: vi.fn(() => ({ kind: "session-manager" })),
   settingsManagerCreate: vi.fn(() => ({ applyOverrides: vi.fn() })),
@@ -30,6 +31,9 @@ vi.mock("@mariozechner/pi-coding-agent", () => ({
 }));
 vi.mock("node:fs", () => ({
   existsSync: mocks.existsSync,
+}));
+vi.mock("node:os", () => ({
+  homedir: mocks.homedir,
 }));
 
 import { createKbAgent } from "./pi.js";
@@ -107,6 +111,8 @@ describe("createKbAgent", () => {
   });
 
   it("falls back to legacy ~/.pi paths when only legacy files exist", async () => {
+    // With the hardcoded ~/.pi/agent path, resolveAgentFilePath checks if
+    // ~/.pi/agent/auth.json exists. If not, it falls back to ~/.pi/auth.json.
     const legacyPaths = new Set([
       "/home/test/.pi/auth.json",
       "/home/test/.pi/models.json",

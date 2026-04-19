@@ -18,6 +18,7 @@ import {
   type AgentSession,
   type ToolDefinition,
 } from "@mariozechner/pi-coding-agent";
+import { homedir } from "node:os";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -87,7 +88,11 @@ function resolveSettingsAgentDir(agentDir: string): string {
  * Reuses the user's existing pi auth and model configuration.
  */
 export async function createKbAgent(options: AgentOptions): Promise<AgentResult> {
-  const agentDir = getAgentDir();
+  // Always use ~/.pi/agent/ for auth and models, even when running as a
+  // compiled Bun binary (which sets PI_PACKAGE_DIR and changes getAgentDir()
+  // to ~/.kb/agent/). kb reuses pi's auth/model configuration.
+  const piAgentDir = join(homedir(), ".pi", "agent");
+  const agentDir = piAgentDir;
   const authPath = resolveAgentFilePath(agentDir, "auth.json");
   const modelsPath = resolveAgentFilePath(agentDir, "models.json");
   const settingsAgentDir = resolveSettingsAgentDir(agentDir);

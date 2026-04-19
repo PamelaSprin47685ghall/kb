@@ -1,5 +1,7 @@
 import { exec } from "node:child_process";
 import type { AddressInfo } from "node:net";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { TaskStore } from "@kb/core";
 import { createServer } from "@kb/dashboard";
 import { TriageProcessor, TaskExecutor, Scheduler, AgentSemaphore, WorktreePool, aiMergeTask, UsageLimitPauser, PRIORITY_MERGE, scanIdleWorktrees, cleanupOrphanedWorktrees } from "@kb/engine";
@@ -191,8 +193,13 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
   // ModelRegistry discovers available models from configured providers.
   // Passing these to createServer enables the dashboard's Authentication
   // tab (login/logout) and Model selector.
-  const authStorage = AuthStorage.create();
-  const modelRegistry = new ModelRegistry(authStorage);
+  //
+  // Always use ~/.pi/agent/ for auth and models, even when running as a
+  // compiled Bun binary (which sets PI_PACKAGE_DIR and changes getAgentDir()
+  // to ~/.kb/agent/). kb reuses pi's auth/model configuration.
+  const piAgentDir = join(homedir(), ".pi", "agent");
+  const authStorage = AuthStorage.create(join(piAgentDir, "auth.json"));
+  const modelRegistry = new ModelRegistry(authStorage, join(piAgentDir, "models.json"));
 
   // Start the web server with AI merge, auth, and model registry wired in
   const app = createServer(store, { onMerge, authStorage, modelRegistry });

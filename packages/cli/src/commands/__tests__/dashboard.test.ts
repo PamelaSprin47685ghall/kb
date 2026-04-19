@@ -117,20 +117,26 @@ describe("runDashboard — AuthStorage & ModelRegistry wiring", () => {
     expect(serverOpts).toHaveProperty("modelRegistry", mockModelRegistry);
   });
 
-  it("creates AuthStorage via AuthStorage.create()", async () => {
+  it("creates AuthStorage via AuthStorage.create() with ~/.pi/agent/auth.json", async () => {
     const { AuthStorage } = await import("@mariozechner/pi-coding-agent");
 
     await runDashboard(0, { open: false });
 
     expect(AuthStorage.create).toHaveBeenCalledTimes(1);
+    expect(AuthStorage.create).toHaveBeenCalledWith(
+      expect.stringContaining(".pi/agent/auth.json"),
+    );
   });
 
-  it("creates ModelRegistry with the authStorage instance", async () => {
+  it("creates ModelRegistry with the authStorage instance and ~/.pi/agent/models.json", async () => {
     const { ModelRegistry } = await import("@mariozechner/pi-coding-agent");
 
     await runDashboard(0, { open: false });
 
     expect(ModelRegistry).toHaveBeenCalledTimes(1);
-    expect(ModelRegistry).toHaveBeenCalledWith(mockAuthStorage);
+    expect(ModelRegistry).toHaveBeenCalledWith(
+      mockAuthStorage,
+      expect.stringContaining(".pi/agent/models.json"),
+    );
   });
 });
