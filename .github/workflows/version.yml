@@ -60,7 +60,7 @@ jobs:
       - name: Commit version changes
         if: steps.changesets.outputs.has_changesets == 'true'
         run: |
-          if git diff --quiet; then
+          if git diff-index --quiet HEAD --; then
             echo "No version changes generated."
             exit 0
           fi
@@ -71,7 +71,7 @@ jobs:
           git push origin HEAD:main
 
       - name: Publish to npm
-        if: steps.changesets.outputs.has_changesets == 'false' && github.event.head_commit.message == 'Version Packages'
+        if: steps.changesets.outputs.has_changesets == 'true'
         run: pnpm changeset publish --provenance --access public
         env:
           NPM_CONFIG_PROVENANCE: true
