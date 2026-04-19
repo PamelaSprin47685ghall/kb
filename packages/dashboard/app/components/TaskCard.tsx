@@ -150,11 +150,11 @@ export function TaskCard({ task, queued, onOpenDetail, addToast, globalPaused }:
           </div>
         );
       })()}
-      {((task.dependencies && task.dependencies.length > 0) || queued || task.status === "queued" || task.blockedBy) && (
+      {((task.dependencies?.length ?? 0) > 0 || queued || task.status === "queued" || task.blockedBy) && (
         <div className="card-meta">
-          {task.dependencies && task.dependencies.length > 0 && (
-            <span className="card-dep-badge" data-tooltip={task.dependencies.join(", ")}>
-              <Link size={12} style={{ verticalAlign: 'middle' }} /> {task.dependencies.length} dep{task.dependencies.length > 1 ? "s" : ""}
+          {(task.dependencies?.length ?? 0) > 0 && (
+            <span className="card-dep-badge" data-tooltip={task.dependencies?.join(", ") ?? ""}>
+              <Link size={12} style={{ verticalAlign: 'middle' }} /> {task.dependencies!.length} dep{task.dependencies!.length > 1 ? "s" : ""}
             </span>
           )}
           {task.blockedBy && (
