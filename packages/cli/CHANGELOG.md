@@ -1,5 +1,15 @@
 # @dustinbyrne/kb
 
+## 0.4.1
+
+### Patch Changes
+
+- 2ad581d: Add dashboard screenshot to pi package gallery listing and README.
+- ba56f16: Fix kb engine agent path resolution by falling back to legacy `~/.pi/*.json` files when `~/.pi/agent/*.json` is absent, so existing pi auth/models/settings continue to work.
+- fb164cf: Fix model multi-select in dashboard settings - now properly displays as multi-select with visual feedback for selected options.
+- f19f711: Ensure kb engine agent sessions load models from the user pi agent directory (`~/.pi/agent/models.json`) so configured models remain available when inheriting user settings/plugins.
+- d2a9c5d: Preserve user-configured pi plugins/extensions in agent sessions and add random multi-model selection via colon-delimited model settings.
+
 ## 0.4.0
 
 ### Minor Changes
