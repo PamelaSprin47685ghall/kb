@@ -47,7 +47,14 @@ function parseSelectedModelValues(defaultProvider?: string, defaultModelId?: str
     .split(":")
     .map((entry) => entry.trim())
     .filter(Boolean)
-    .map((entry) => (entry.includes("/") ? entry : (defaultProvider ? `${defaultProvider}/${entry}` : "")))
+    .map((entry) => {
+      // If entry already has provider (contains /), use as-is
+      if (entry.includes("/")) return entry;
+      // If no provider in entry and we have a defaultProvider, prepend it
+      if (defaultProvider) return `${defaultProvider}/${entry}`;
+      // Otherwise skip this entry (invalid format)
+      return "";
+    })
     .filter(Boolean);
 }
 
