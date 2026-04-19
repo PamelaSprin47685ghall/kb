@@ -102,7 +102,11 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
     const filePath = join(dir, "task.json");
     const raw = await readFile(filePath, "utf-8");
     try {
-      return JSON.parse(raw) as Task;
+      const task = JSON.parse(raw) as Task;
+      // Defensive: ensure log array exists for legacy tasks
+      if (!task.log) task.log = [];
+      if (!task.steps) task.steps = [];
+      return task;
     } catch (err) {
       throw new Error(
         `Failed to parse task.json at ${filePath}: ${(err as Error).message}`,
@@ -319,6 +323,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
           task.column = "triage";
           task.status = undefined;
           task.columnMovedAt = new Date().toISOString();
+          if (!task.log) task.log = [];
           task.log.push({
             timestamp: new Date().toISOString(),
             action: "Moved to triage for re-specification — new dependency added",
@@ -376,6 +381,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       }
       const now = new Date().toISOString();
       task.updatedAt = now;
+      if (!task.log) task.log = [];
       task.log.push({
         timestamp: now,
         action: paused ? "Task paused" : "Task unpaused",
@@ -428,6 +434,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       }
 
       // Log it
+      if (!task.log) task.log = [];
       task.log.push({
         timestamp: task.updatedAt,
         action: `Step ${stepIndex} (${task.steps[stepIndex].name}) → ${status}`,
@@ -449,6 +456,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       const dir = this.taskDir(id);
       const task = await this.readTaskJson(dir);
 
+      if (!task.log) task.log = [];
       task.log.push({
         timestamp: new Date().toISOString(),
         action,
