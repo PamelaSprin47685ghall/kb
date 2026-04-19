@@ -41,6 +41,22 @@ interface SettingsModalProps {
   initialSection?: SectionId;
 }
 
+function parseSelectedModelValues(defaultProvider?: string, defaultModelId?: string): string[] {
+  if (!defaultModelId) return [];
+  return defaultModelId
+    .split(":")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => (entry.includes("/") ? entry : (defaultProvider ? `${defaultProvider}/${entry}` : "")))
+    .filter(Boolean);
+}
+
+function parseModelValue(value: string): { provider: string; modelId: string } | undefined {
+  const slashIdx = value.indexOf("/");
+  if (slashIdx <= 0 || slashIdx >= value.length - 1) return undefined;
+  return { provider: value.slice(0, slashIdx), modelId: value.slice(slashIdx + 1) };
+}
+
 export function SettingsModal({ onClose, addToast, initialSection }: SettingsModalProps) {
   const [form, setForm] = useState<Settings & { worktreeInitCommand?: string }>({ maxConcurrent: 2, maxWorktrees: 4, pollIntervalMs: 15000, groupOverlappingFiles: false, autoMerge: true, recycleWorktrees: false, includeTaskIdInCommit: true, worktreeInitCommand: "" });
   const [loading, setLoading] = useState(true);
@@ -211,9 +227,7 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
           (acc[m.provider] ??= []).push(m);
           return acc;
         }, {});
-        const selectedValue = form.defaultProvider && form.defaultModelId
-          ? `${form.defaultProvider}/${form.defaultModelId}`
-          : "";
+        const selectedValues = parseSelectedModelValues(form.defaultProvider, form.defaultModelId);
         return (
           <>
             <h4 className="settings-section-heading">Model</h4>
@@ -225,25 +239,34 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
               </div>
             ) : (
               <div className="form-group">
-                <label htmlFor="defaultModel">Default Model</label>
+                <label htmlFor="defaultModel">Default Models</label>
                 <select
                   id="defaultModel"
-                  value={selectedValue}
+                  multiple
+                  value={selectedValues}
                   onChange={(e) => {
-                    const val = e.target.value;
-                    if (!val) {
+                    const values = Array.from(e.currentTarget.selectedOptions).map((option) => option.value);
+                    if (values.length === 0) {
                       setForm((f) => ({ ...f, defaultProvider: undefined, defaultModelId: undefined }));
                     } else {
-                      const slashIdx = val.indexOf("/");
+                      const parsed = values
+                        .map((value) => parseModelValue(value))
+                        .filter((value): value is { provider: string; modelId: string } => !!value);
+                      if (parsed.length === 0) {
+                        setForm((f) => ({ ...f, defaultProvider: undefined, defaultModelId: undefined }));
+                        return;
+                      }
+                      const uniqueProviders = [...new Set(parsed.map((value) => value.provider))];
                       setForm((f) => ({
                         ...f,
-                        defaultProvider: val.slice(0, slashIdx),
-                        defaultModelId: val.slice(slashIdx + 1),
+                        defaultProvider: uniqueProviders.length === 1 ? uniqueProviders[0] : undefined,
+                        defaultModelId: uniqueProviders.length === 1
+                          ? parsed.map((value) => value.modelId).join(":")
+                          : parsed.map((value) => `${value.provider}/${value.modelId}`).join(":"),
                       }));
                     }
                   }}
                 >
-                  <option value="">Use default</option>
                   {Object.entries(modelsByProvider).map(([provider, models]) => (
                     <optgroup key={provider} label={provider}>
                       {models.map((m) => (
@@ -254,14 +277,16 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
                     </optgroup>
                   ))}
                 </select>
-                <small>Select the AI model used for agent sessions. "Use default" lets the engine choose automatically.</small>
+                <small>Select one or more models. The engine randomly picks one per agent session. Leave all unselected to use pi automatic model defaults.</small>
               </div>
             )}
             {(() => {
-              const selectedModel = availableModels.find(
-                (m) => m.provider === form.defaultProvider && m.id === form.defaultModelId,
-              );
-              if (selectedModel && !selectedModel.reasoning) return null;
+              const selectedModels = selectedValues
+                .map((value) => parseModelValue(value))
+                .filter((value): value is { provider: string; modelId: string } => !!value)
+                .map((selected) => availableModels.find((m) => m.provider === selected.provider && m.id === selected.modelId))
+                .filter((model): model is ModelInfo => !!model);
+              if (selectedModels.some((model) => !model.reasoning)) return null;
               return (
                 <div className="form-group">
                   <label htmlFor="defaultThinkingLevel">Thinking Effort</label>
