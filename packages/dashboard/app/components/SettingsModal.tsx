@@ -70,11 +70,13 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
   // Model state
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
 
   useEffect(() => {
     fetchSettings()
       .then((s) => {
         setForm(s);
+        setSelectedModels(parseStoredModels(s.defaultModelId));
         setLoading(false);
       })
       .catch((err) => {
@@ -225,7 +227,6 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
           (acc[m.provider] ??= []).push(m);
           return acc;
         }, {});
-        const selectedModels = parseStoredModels(form.defaultModelId);
         return (
           <>
             <h4 className="settings-section-heading">Model</h4>
@@ -244,6 +245,7 @@ export function SettingsModal({ onClose, addToast, initialSection }: SettingsMod
                   value={selectedModels}
                   onChange={(e) => {
                     const selected = Array.from(e.currentTarget.selectedOptions).map((option) => option.value);
+                    setSelectedModels(selected);
                     if (selected.length === 0) {
                       setForm((f) => ({ ...f, defaultProvider: undefined, defaultModelId: undefined }));
                     } else {
