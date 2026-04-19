@@ -132,9 +132,9 @@ export function TaskCard({ task, queued, onOpenDetail, addToast, globalPaused }:
       <div className="card-title">
         {task.title || (task.description ? task.description.slice(0, 60) + (task.description.length > 60 ? "…" : "") : task.id)}
       </div>
-      {task.steps.length > 0 && (() => {
-        const completedSteps = task.steps.filter(s => s.status === "done").length;
-        const totalSteps = task.steps.length;
+      {(task.steps?.length ?? 0) > 0 && (() => {
+        const completedSteps = task.steps!.filter(s => s.status === "done").length;
+        const totalSteps = task.steps!.length;
         return (
           <div className="card-progress">
             <div className="card-progress-bar">
